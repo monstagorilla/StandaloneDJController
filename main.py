@@ -51,7 +51,7 @@ class Player:
             self.isPlaying[channel] = True
 
     def set_pitch(self, value, channel):
-        self.pitch[channel] = value
+        self.pitch[channel] = value 
         self.phasor[channel].freq = value * self.table[channel].getRate()
 
     def set_position(self, position, channel):
@@ -87,9 +87,9 @@ while is_running:
     elif new_input == "s1":
         p.start_stop(1)
     elif new_input == "pitch0":
-        p.set_pitch(float(input("pitch in percent channel 0")), 0)
+        p.set_pitch(float(input("pitch channel 0 between 0 and 1")), 0)
     elif new_input == "pitch1":
-        p.set_pitch(float(input("pitch in percent channel 1")), 1)
+        p.set_pitch(float(input("pitch channel 1 between 0 and 1")), 1)
     elif new_input == "pos0":
         p.set_position(float(input("position channel 0 between 0 and 1")), 0)
     elif new_input == "pos1":
