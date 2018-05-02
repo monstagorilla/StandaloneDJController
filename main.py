@@ -2,6 +2,9 @@ from pyo import *
 import wx
 import time 
 
+#GUI-TODOs: handler fertig schreiben, unterschiedliche cmd level handlen, lbls für song stats, track auswählen
+
+
 class Player:
     def __init__(self):
         self.server = Server()
@@ -51,6 +54,8 @@ class Player:
             self.isPlaying[channel] = True
 
     def set_pitch(self, value, channel):
+        if not self.isPlaying[channel]:
+            return
         self.pitch[channel] = value 
         self.phasor[channel].freq = value * self.table[channel].getRate()
 
@@ -74,67 +79,116 @@ class MyFrame(wx.Frame):
         wx.Frame.__init__(self, None, style = wx.NO_BORDER | wx.CAPTION)
         self.box_sizer_v = wx.BoxSizer(wx.VERTICAL)
         self.SetSizer(self.box_sizer_v)
-
         self.is_running = True
         self.new_input = ""
+        self.cmd_state = ""
+        self.cmd_chnl = ""
         self.player = player
         self.snd_view = [PyoGuiSndView(parent = self), PyoGuiSndView(parent = self)]
         self.snd_view[0].setTable(player.mono_table[0])
         self.snd_view[1].setTable(player.mono_table[1])
+        self.cmd = wx.TextCtrl(parent = self, style = wx.TE_PROCESS_ENTER)
+        self.text = wx.TextCtrl(parent = self)
+        self.timer = wx.Timer(self)
+        self.box_sizer_v.Add(self.cmd, 0, wx.EXPAND|wx.ALIGN_LEFT|wx.ALL, 5)
+        self.box_sizer_v.Add(self.text, 0, wx.EXPAND|wx.ALIGN_LEFT|wx.ALL, 5)
         self.box_sizer_v.Add(self.snd_view[0], 0, wx.ALL)
         self.box_sizer_v.Add(self.snd_view[1], 0, wx.ALL)
         self.box_sizer_v.Fit(self)
-        self.timer = wx.Timer(self)
-        self.Bind(wx.EVT_TIMER, self.update, self.timer)
         self.timer.Start(10)
-   
+        self.Bind(wx.EVT_TIMER, self.update, self.timer)
+        self.cmd.Bind(wx.EVT_TEXT_ENTER, self.new_cmd)
+
+    def new_cmd(self, event):
+        self.new_input = self.cmd.GetLineText(0)
+        if self.cmd_state == "":
+            if self.new_input == "s0":
+                self.player.start_stop(0)
+                self.print_msg("")
+            elif self.new_input == "s1":
+                self.player.start_stop(1) 
+                self.print_msg("")
+            elif self.new_input == "pitch0":
+                self.print_msg("pitch channel 0 between 0 and 1")
+                self.cmd_state = "pitch"
+                self.cmd_chnl = 0
+            elif self.new_input == "pitch1":
+                self.print_msg("pitch channel 1 between 0 and 1")
+                self.cmd_state = "pitch"
+                self.cmd_chnl = 1
+            elif self.new_input == "pos0":
+                self.print_msg("position channel 0 between 0 and 1")
+                self.cmd_state = "pos"
+                self.cmd_chnl = 0
+            elif self.new_input == "pos1":
+                self.print_msg("position channel 1 between 0 and 1")
+                self.cmd_state = "pos"
+                self.cmd_chnl = 1
+            elif self.new_input == "jump0":
+                self.print_msg("jump diff channel 0 between 0 and 1")
+                self.cmd_state = "jump"
+                self.cmd_chnl = 0
+            elif self.new_input == "jump1":
+                self.print_msg("jump diff channel 1 between 0 and 1")
+                self.cmd_state = "jump"
+                self.cmd_chnl = 1
+            elif self.new_input == "low0":
+                self.print_msg("low boost channel 0 between 0 and 1")
+                self.cmd_state = "low"
+                self.cmd_chnl = 0
+            elif self.new_input == "low1":
+                self.print_msg("low boost channel 1 between 0 and 1")
+                self.cmd_state = "low"
+                self.cmd_chnl = 1
+            elif self.new_input == "mid0":
+                self.print_msg("low boost channel 0 between 0 and 1")
+                self.cmd_state = "mid"
+                self.cmd_chnl = 0
+            elif self.new_input == "mid1":
+                self.print_msg("mid boost channel 1 between 0 and 1")
+                self.cmd_state = "mid"
+                self.cmd_chnl = 1
+            elif self.new_input == "high0":
+                self.print_msg("high boost channel 0 between 0 and 1")
+                self.cmd_state = "high"
+                self.cmd_chnl = 0
+            elif self.new_input == "high1":
+                self.print_msg("high boost channel 1 between 0 and 1")
+                self.cmd_state = "high"
+                self.cmd_chnl = 1
+            else:
+                self.cmd_state = ""
+                self.print_msg("invalid input")
+        else:
+            try: 
+                if self.cmd_state == "pitch":
+                    self.player.set_pitch(float(self.new_input), self.cmd_chnl)
+                elif self.cmd_state == "pos":
+                    self.player.set_position(float(self.new_input), self.cmd_chnl)
+                elif self.cmd_state == "jump":
+                    self.player.jump_position(float(self.new_input), self.cmd_chnl)
+                elif self.cmd_state == "low":
+                    self.player.set_eq(self.player.lowEq[self.cmd_chnl], float(self.new_input))
+                elif self.cmd_state == "mid":
+                    self.player.set_eq(self.player.midEq[self.cmd_chnl], float(self.new_input))
+                elif self.cmd_state == "high":
+                    self.player.set_eq(self.player.highEq[self.cmd_chnl], float(self.new_input))
+                elif self.cmd_state == "quit":
+                    print("quit")
+            except:
+                self.print_msg("invalid input!!!!")
+            self.cmd_state = ""
+            self.print_msg("")
+        
     def update(self, event):
         self.snd_view[0].setSelection(0, self.player.phasor[0].get())
         self.snd_view[1].setSelection(0, self.player.phasor[1].get())
-        print(self.player.phasor[0].get())
-        '''
-        while self.is_running:
-            if self.new_input == "s0":
-                p.start_stop(0)
-            elif self.new_input == "s1":
-                p.start_stop(1)
-            elif self.new_input == "pitch0":
-                p.set_pitch(float(input("pitch channel 0 between 0 and 1")), 0)
-            elif self.new_input == "pitch1":
-                p.set_pitch(float(input("pitch channel 1 between 0 and 1")), 1)
-            elif self.new_input == "pos0":
-                p.set_position(float(input("position channel 0 between 0 and 1")), 0)
-            elif self.new_input == "pos1":
-                p.set_position(float(input("position channel 1 between 0 and 1")), 1)
-            elif self.new_input == "jump0":
-                p.jump_position(float(input("jump diff channel 0 between 0 and 1")), 0)
-            elif self.new_input == "jump1":
-                p.jump_position(float(input("jump diff channel 1 between 0 and 1")), 1)    
-            elif self.new_input == "eq0":
-                which_input = input("which eq?")
-                if which_input == "low":
-                    p.set_eq(p.lowEq[0], float(input("low boost channel 0 between 0 and 1")))
-                elif which_input == "mid":
-                    p.set_eq(p.midEq[0], float(input("mid boost channel 0 between 0 and 1")))
-                elif which_input == "high":
-                    p.set_eq(p.highEq[0], float(input("high boost channel 0 between 0 and 1")))
-                else: 
-                    print("invalid eq")    
-            elif self.new_input == "eq1":
-                which_input = input("which eq for channel 1?")
-                if which_input == "low":
-                    p.set_eq(p.lowEq[1], float(input("low boost channel 1 between 0 and 1")))
-                elif which_input == "mid":
-                    p.set_eq(p.midEq[1], float(input("mid boost channel 1 between 0 and 1")))
-                elif which_input == "high":
-                    p.set_eq(p.highEq[1], float(input("high boost channel 1 between 0 and 1")))
-                else: 
-                    print("invalid eq")
-            elif self.new_input == "quit":
-                self.is_running = False
-            else:
-                print("invalid input")
-'''
+    
+    def print_msg(self, text):
+        self.text.Clear()
+        self.text.AppendText(text)
+        self.cmd.Clear()
+
 p = Player()
 p.load_track('test.wav', 0)
 p.load_track('test2.wav',1)
