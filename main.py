@@ -2,7 +2,7 @@ from pyo import *
 import wx
 import time 
 
-#GUI-TODOs: handler fertig schreiben, unterschiedliche cmd level handlen, lbls für song stats, track auswählen
+#GUI-TODOs: style of textctrls, choose track
 
 
 class Player:
@@ -78,22 +78,36 @@ class MyFrame(wx.Frame):
     def __init__(self, player):
         wx.Frame.__init__(self, None, style = wx.NO_BORDER | wx.CAPTION)
         self.box_sizer_v = wx.BoxSizer(wx.VERTICAL)
+        self.box_sizer_stat0 = wx.BoxSizer(wx.HORIZONTAL) 
+        self.box_sizer_stat1 = wx.BoxSizer(wx.HORIZONTAL) 
+        
         self.SetSizer(self.box_sizer_v)
+        
         self.is_running = True
         self.new_input = ""
         self.cmd_state = ""
         self.cmd_chnl = ""
         self.player = player
-        self.snd_view = [PyoGuiSndView(parent = self), PyoGuiSndView(parent = self)]
+        
+        self.snd_view = [PyoGuiSndView(parent = self, style = wx.BORDER_NONE, size = (300, 50)), PyoGuiSndView(parent = self, size = (300, 50))]
         self.snd_view[0].setTable(player.mono_table[0])
         self.snd_view[1].setTable(player.mono_table[1])
         self.cmd = wx.TextCtrl(parent = self, style = wx.TE_PROCESS_ENTER)
         self.text = wx.TextCtrl(parent = self)
         self.timer = wx.Timer(self)
-        self.box_sizer_v.Add(self.cmd, 0, wx.EXPAND|wx.ALIGN_LEFT|wx.ALL, 5)
-        self.box_sizer_v.Add(self.text, 0, wx.EXPAND|wx.ALIGN_LEFT|wx.ALL, 5)
+        self.pitch = [wx.TextCtrl(parent = self, value = "0.0%", style = wx.TE_READONLY), wx.TextCtrl(parent = self, value = "0.0%", style = wx.TE_READONLY)] 
+        self.pos = [wx.TextCtrl(parent = self, value = "0:00/0:00", style = wx.TE_READONLY), wx.TextCtrl(parent = self, value = "0:00/0:00", style = wx.TE_READONLY)] 
+        
+        self.box_sizer_v.Add(self.cmd, 0, wx.EXPAND|wx.ALIGN_LEFT|wx.ALL)
+        self.box_sizer_v.Add(self.text, 0, wx.EXPAND|wx.ALIGN_LEFT|wx.ALL)
+        self.box_sizer_v.Add(self.box_sizer_stat0, 0, wx.ALL)
         self.box_sizer_v.Add(self.snd_view[0], 0, wx.ALL)
+        self.box_sizer_v.Add(self.box_sizer_stat1, 0, wx.ALL)
         self.box_sizer_v.Add(self.snd_view[1], 0, wx.ALL)
+        self.box_sizer_stat0.Add(self.pitch[0], wx.ALL)
+        self.box_sizer_stat0.Add(self.pos[0], wx.ALL)
+        self.box_sizer_stat1.Add(self.pitch[1], wx.ALL)
+        self.box_sizer_stat1.Add(self.pos[1], wx.ALL)
         self.box_sizer_v.Fit(self)
         self.timer.Start(10)
         self.Bind(wx.EVT_TIMER, self.update, self.timer)
@@ -104,61 +118,62 @@ class MyFrame(wx.Frame):
         if self.cmd_state == "":
             if self.new_input == "s0":
                 self.player.start_stop(0)
-                self.print_msg("")
+                self.print_msg("", self.text)
             elif self.new_input == "s1":
                 self.player.start_stop(1) 
-                self.print_msg("")
+                self.print_msg("", self.text)
             elif self.new_input == "pitch0":
-                self.print_msg("pitch channel 0 between 0 and 1")
+                self.print_msg("pitch channel 0 between 0 and 1", self.text)
                 self.cmd_state = "pitch"
                 self.cmd_chnl = 0
             elif self.new_input == "pitch1":
-                self.print_msg("pitch channel 1 between 0 and 1")
+                self.print_msg("pitch channel 1 between 0 and 1", self.text)
                 self.cmd_state = "pitch"
                 self.cmd_chnl = 1
             elif self.new_input == "pos0":
-                self.print_msg("position channel 0 between 0 and 1")
+                self.print_msg("position channel 0 between 0 and 1", self.text)
                 self.cmd_state = "pos"
                 self.cmd_chnl = 0
             elif self.new_input == "pos1":
-                self.print_msg("position channel 1 between 0 and 1")
+                self.print_msg("position channel 1 between 0 and 1", self.text)
                 self.cmd_state = "pos"
                 self.cmd_chnl = 1
             elif self.new_input == "jump0":
-                self.print_msg("jump diff channel 0 between 0 and 1")
+                self.print_msg("jump diff channel 0 between 0 and 1", self.text)
                 self.cmd_state = "jump"
                 self.cmd_chnl = 0
             elif self.new_input == "jump1":
-                self.print_msg("jump diff channel 1 between 0 and 1")
+                self.print_msg("jump diff channel 1 between 0 and 1", self.text)
                 self.cmd_state = "jump"
                 self.cmd_chnl = 1
             elif self.new_input == "low0":
-                self.print_msg("low boost channel 0 between 0 and 1")
+                self.print_msg("low boost channel 0 between 0 and 1", self.text)
                 self.cmd_state = "low"
                 self.cmd_chnl = 0
             elif self.new_input == "low1":
-                self.print_msg("low boost channel 1 between 0 and 1")
+                self.print_msg("low boost channel 1 between 0 and 1", self.text)
                 self.cmd_state = "low"
                 self.cmd_chnl = 1
             elif self.new_input == "mid0":
-                self.print_msg("low boost channel 0 between 0 and 1")
+                self.print_msg("low boost channel 0 between 0 and 1", self.text)
                 self.cmd_state = "mid"
                 self.cmd_chnl = 0
             elif self.new_input == "mid1":
-                self.print_msg("mid boost channel 1 between 0 and 1")
+                self.print_msg("mid boost channel 1 between 0 and 1", self.text)
                 self.cmd_state = "mid"
                 self.cmd_chnl = 1
             elif self.new_input == "high0":
-                self.print_msg("high boost channel 0 between 0 and 1")
+                self.print_msg("high boost channel 0 between 0 and 1", self.text)
                 self.cmd_state = "high"
                 self.cmd_chnl = 0
             elif self.new_input == "high1":
-                self.print_msg("high boost channel 1 between 0 and 1")
+                self.print_msg("high boost channel 1 between 0 and 1", self.text)
                 self.cmd_state = "high"
                 self.cmd_chnl = 1
             else:
                 self.cmd_state = ""
-                self.print_msg("invalid input")
+                self.print_msg("invalid input", self.text)
+            self.cmd.Clear()
         else:
             try: 
                 if self.cmd_state == "pitch":
@@ -176,18 +191,24 @@ class MyFrame(wx.Frame):
                 elif self.cmd_state == "quit":
                     print("quit")
             except:
-                self.print_msg("invalid input!!!!")
+                self.print_msg("invalid input!!!!", self.text)
             self.cmd_state = ""
-            self.print_msg("")
+            self.print_msg("", self.text)
         
     def update(self, event):
         self.snd_view[0].setSelection(0, self.player.phasor[0].get())
         self.snd_view[1].setSelection(0, self.player.phasor[1].get())
+        self.print_msg('{:+.1f}'.format((self.player.pitch[0] - 1) * 100) + "%", self.pitch[0])
+        self.print_msg('{:+.1f}'.format((self.player.pitch[1] - 1) * 100) + "%", self.pitch[1])
+        self.print_msg(self.sec_to_str(int(self.player.phasor[0].get() * self.player.table[0].getDur()), int(self.player.table[0].getDur())), self.pos[0])
+        self.print_msg(self.sec_to_str(int(self.player.phasor[1].get() * self.player.table[1].getDur()), int(self.player.table[1].getDur())), self.pos[1])
     
-    def print_msg(self, text):
-        self.text.Clear()
-        self.text.AppendText(text)
-        self.cmd.Clear()
+    def print_msg(self, text, textctrl):
+        textctrl.Clear()
+        textctrl.AppendText(text)
+
+    def sec_to_str(self, sec, dur):
+        return str(int(sec/60)) + ":" + str(sec%60).zfill(2) + "/" + str(int(dur/60)) + ":" + str(dur%60).zfill(2)        
 
 p = Player()
 p.load_track('test.wav', 0)
