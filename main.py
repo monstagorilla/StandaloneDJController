@@ -4,7 +4,6 @@ import time
 
 #GUI-TODOs: style of textctrls, choose track
 
-
 class Player:
     def __init__(self):
         self.server = Server()
@@ -73,6 +72,45 @@ class Player:
         if value > 0:
             value /= 10 #weaker increasing than lowering
         equalizer.boost = value * 40 #max lowering 40dB
+
+class BrowserFrame(wx.Frame):
+    def __init__(self):
+        wx.Frame.__init__(self, None,  style = wx.NO_BORDER | wx.CAPTION)
+        
+        self.path_root = "/home/monstagorilla/Music"
+        self.path = self.path_root
+        self.dir_list = []
+        self.track_list = []
+        self.index = 0
+        
+        self.box_sizer_v = wx.BoxSizer(wx.VERTICAL)
+        self.SetSizer(self.box_sizer_v)
+
+
+        self.list_ctrl = wx.ListCtrl(parent = self, size = (400, 300), style = wx.LC_REPORT | wx.BORDER_SUNKEN)
+        self.list_ctrl.InsertColumn(0, "Title", width = 200)
+        self.refresh_list_view()
+        self.path_label = wx.TextCtrl(parent = self, style = wx.TE_READONLY, value = self.path)
+
+        self.box_sizer_v.Add(self.path_label, 0, wx.ALL)
+        self.box_sizer_v.Add(self.list_ctrl, 0, wx.ALL)
+        self.box_sizer_v.Fit(self)
+    
+    def refresh_list_view (self):
+        self.index = 0
+        for item in os.listdir(self.path):
+            if os.path.isdir(self.path + "/" + item): 
+                self.dir_list.append(item)
+            elif os.path.isfile(self.path + "/" +item) and item[-4:] == ".mp3":
+                self.track_list.append(item)
+        
+        for item in self.dir_list:
+            self.list_ctrl.InsertItem(self.index, "->" + item)
+            self.index += 1
+        
+        for item in self.track_list:
+            self.list_ctrl.InsertItem(self.index, item)
+            self.index += 1
 
 class MyFrame(wx.Frame):
     def __init__(self, player):
@@ -218,4 +256,5 @@ p.start_stop(1)
 p.server.start()
 app = wx.App()
 frame = MyFrame(p).Show()
+frame1 = BrowserFrame().Show()
 app.MainLoop()
