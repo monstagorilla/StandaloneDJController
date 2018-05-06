@@ -2,7 +2,7 @@ from pyo import *
 import wx
 import time 
 
-#GUI-TODOs: style of textctrls, choose track
+#GUI-TODOs: style of textctrls
 
 class Player:
     def __init__(self):
@@ -39,7 +39,9 @@ class Player:
         self.highEq[1].ctrl(title = "high1")
 
     def load_track(self, path, channel):
-        self.table[channel] = SndTable(path)
+        self.phasor[channel].reset()
+        self.phasor[channel].freq = 0
+        self.table[channel].setSound(path)
         self.mono_table[channel] = SndTable(path = path, chnl = 0)
         self.phasor[channel].freq = self.table[channel].getRate()
         self.pointer[channel].table = self.table[channel]
@@ -74,34 +76,42 @@ class Player:
         equalizer.boost = value * 40 #max lowering 40dB
 
 class BrowserFrame(wx.Frame):
-    def __init__(self):
+    def __init__(self, player):
         wx.Frame.__init__(self, None,  style = wx.NO_BORDER | wx.CAPTION)
         
+        self.player = player
         self.path_root = "/home/monstagorilla/Music"
         self.path = self.path_root
         self.dir_list = []
         self.track_list = []
         self.index = 0
-        
+        self.dir_lvl = 0
+
         self.box_sizer_v = wx.BoxSizer(wx.VERTICAL)
         self.SetSizer(self.box_sizer_v)
 
 
-        self.list_ctrl = wx.ListCtrl(parent = self, size = (400, 300), style = wx.LC_REPORT | wx.BORDER_SUNKEN)
+        self.list_ctrl = wx.ListCtrl(parent = self, size = (400, 300), style = wx.LC_REPORT | wx.LC_SINGLE_SEL)
         self.list_ctrl.InsertColumn(0, "Title", width = 200)
+        self.path_label = wx.TextCtrl(parent = self, size = (400, -1), style = wx.TE_READONLY, value = self.path)
         self.refresh_list_view()
-        self.path_label = wx.TextCtrl(parent = self, style = wx.TE_READONLY, value = self.path)
 
         self.box_sizer_v.Add(self.path_label, 0, wx.ALL)
         self.box_sizer_v.Add(self.list_ctrl, 0, wx.ALL)
         self.box_sizer_v.Fit(self)
-    
+        
+        self.list_ctrl.Bind(wx.EVT_KEY_DOWN, self.on_key_pressed)
+        self.list_ctrl.SetFocus()
+
     def refresh_list_view (self):
         self.index = 0
+        self.list_ctrl.DeleteAllItems()
+        del self.dir_list[:]
+        del self.track_list[:]
         for item in os.listdir(self.path):
             if os.path.isdir(self.path + "/" + item): 
                 self.dir_list.append(item)
-            elif os.path.isfile(self.path + "/" +item) and item[-4:] == ".mp3":
+            elif os.path.isfile(self.path + "/" +item) and item[-4:] == ".wav":
                 self.track_list.append(item)
         
         for item in self.dir_list:
@@ -111,6 +121,36 @@ class BrowserFrame(wx.Frame):
         for item in self.track_list:
             self.list_ctrl.InsertItem(self.index, item)
             self.index += 1
+        if self.list_ctrl.GetItemCount() > 0:
+            self.list_ctrl.Select(0)
+        self.path_label.Clear()
+        self.path_label.AppendText(self.path)
+
+    def on_key_load(self, channel):
+        if self.list_ctrl.GetSelectedItemCount() != 1:
+            pass
+        elif self.list_ctrl.GetFirstSelected() < len(self.dir_list):
+            self.path += "/" + self.list_ctrl.GetItemText(self.list_ctrl.GetFirstSelected())[2:]
+            self.dir_lvl += 1
+        elif self.list_ctrl.GetFirstSelected() < self.list_ctrl.GetItemCount():
+            self.player.load_track(self.path + "/" + self.list_ctrl.GetItemText(self.list_ctrl.GetFirstSelected()), channel)
+        self.refresh_list_view()
+
+    def on_key_left(self):
+        if self.dir_lvl > 0:
+            self.path = "/".join(self.path.split("/")[:-1])
+            self.refresh_list_view()
+            self.dir_lvl -= 1
+
+    def on_key_pressed(self, event):
+        keycode = event.GetKeyCode()
+        if keycode == wx.WXK_NUMPAD0 or keycode == wx.WXK_RIGHT:
+            self.on_key_load(0)
+        elif keycode == wx.WXK_NUMPAD1:
+            self.on_key_load(1)
+        elif keycode == wx.WXK_LEFT:
+            self.on_key_left()
+        event.Skip()
 
 class MyFrame(wx.Frame):
     def __init__(self, player):
@@ -256,5 +296,5 @@ p.start_stop(1)
 p.server.start()
 app = wx.App()
 frame = MyFrame(p).Show()
-frame1 = BrowserFrame().Show()
+frame1 = BrowserFrame(p).Show()
 app.MainLoop()
