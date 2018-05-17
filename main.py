@@ -1,16 +1,18 @@
 from pyo import *
 import wx
 import time 
+import shutil
+import subprocess
 
 #GUI-TODOs: style of textctrls
-
+#possible issues: simultanious track loading, different wave forms, displa track name
 class Player:
     def __init__(self):
         self.server = Server()
         self.server.setInOutDevice(7)
         self.server.boot()
         self.table = [SndTable(), SndTable()]
-        self.mono_table = [SndTable(), SndTable()]
+        self.mono_table = [SndTable(chnl = 0), SndTable(chnl = 0)]
         self.isPlaying = [False, False]
         self.phasor = [Phasor(freq = 0), Phasor(freq = 0)]
         self.pointer = [Pointer(table = self.table[0], index = self.phasor[0], mul = 0.3),
@@ -37,14 +39,19 @@ class Player:
         self.midEq[1].ctrl(title = "mid1")
         self.highEq[0].ctrl(title = "high0")
         self.highEq[1].ctrl(title = "high1")
+        self.refresh_snd = [False, False]
 
     def load_track(self, path, channel):
+        print("loading" + path)
         self.phasor[channel].reset()
         self.phasor[channel].freq = 0
         self.table[channel].setSound(path)
-        self.mono_table[channel] = SndTable(path = path, chnl = 0)
-        self.phasor[channel].freq = self.table[channel].getRate()
+        self.mono_table[channel].setSound(path)
         self.pointer[channel].table = self.table[channel]
+        self.refresh_snd[channel] = True
+
+    def decode_mp3(self, i_path, o_path):
+        return subprocess.Popen(["ffmpeg", "-i", i_path, o_path]) 
 
     def start_stop(self, channel):
         if self.isPlaying[channel]:
@@ -78,18 +85,30 @@ class Player:
 class BrowserFrame(wx.Frame):
     def __init__(self, player):
         wx.Frame.__init__(self, None,  style = wx.NO_BORDER | wx.CAPTION)
-        
         self.player = player
         self.path_root = "/home/monstagorilla/Music"
         self.path = self.path_root
+        self.path_temp = self.path_root + "/temp"
+        if os.path.isdir(self.path_temp):
+            self.clear_temp()
+        else:
+            os.mkdir(self.path_temp)
         self.dir_list = []
         self.track_list = []
         self.index = 0
         self.dir_lvl = 0
+         
+        self.decode_is_running = False
+        self.decode_obj = None
+        
+        self.new_track = ["", 0, ""] #[path, chnl, codec] 
+        
+        self.timer = wx.Timer(self)
+        self.timer.Start(10)
+        self.Bind(wx.EVT_TIMER, self.update, self.timer)
 
         self.box_sizer_v = wx.BoxSizer(wx.VERTICAL)
         self.SetSizer(self.box_sizer_v)
-
 
         self.list_ctrl = wx.ListCtrl(parent = self, size = (400, 300), style = wx.LC_REPORT | wx.LC_SINGLE_SEL)
         self.list_ctrl.InsertColumn(0, "Title", width = 200)
@@ -102,7 +121,27 @@ class BrowserFrame(wx.Frame):
         
         self.list_ctrl.Bind(wx.EVT_KEY_DOWN, self.on_key_pressed)
         self.list_ctrl.SetFocus()
+    
+    def clear_temp(self):
+        for the_file in os.listdir(self.path_temp):
+            file_path = os.path.join(self.path_temp, the_file)
+            try:
+                if os.path.isfile(file_path):
+                    os.unlink(file_path)
+                elif os.path.isdir(file_path): 
+                    shutil.rmtree(file_path)
+            except Exception as e:
+                print(e)
 
+    def update(self, event):
+        if self.decode_is_running:
+            if self.decode_obj.poll() != None: #TODO: return code check
+                print("tack to load" + self.new_track[0] + "channel" + str(self.new_track[1]))
+                self.player.load_track(self.new_track[0], self.new_track[1])
+                self.player.refresh_snd[self.new_track[1]] = True
+                self.clear_temp()
+                self.decode_is_running = False
+    
     def refresh_list_view (self):
         self.index = 0
         self.list_ctrl.DeleteAllItems()
@@ -111,9 +150,8 @@ class BrowserFrame(wx.Frame):
         for item in os.listdir(self.path):
             if os.path.isdir(self.path + "/" + item): 
                 self.dir_list.append(item)
-            elif os.path.isfile(self.path + "/" +item) and item[-4:] == ".wav":
+            elif os.path.isfile(self.path + "/" +item) and self.get_codec(item) in [".wav", ".mp3"]:
                 self.track_list.append(item)
-        
         for item in self.dir_list:
             self.list_ctrl.InsertItem(self.index, "->" + item)
             self.index += 1
@@ -126,6 +164,11 @@ class BrowserFrame(wx.Frame):
         self.path_label.Clear()
         self.path_label.AppendText(self.path)
 
+    def get_codec(self, path):
+        if len(path) < 4:
+            return
+        return path[-4:]
+
     def on_key_load(self, channel):
         if self.list_ctrl.GetSelectedItemCount() != 1:
             pass
@@ -133,7 +176,15 @@ class BrowserFrame(wx.Frame):
             self.path += "/" + self.list_ctrl.GetItemText(self.list_ctrl.GetFirstSelected())[2:]
             self.dir_lvl += 1
         elif self.list_ctrl.GetFirstSelected() < self.list_ctrl.GetItemCount():
-            self.player.load_track(self.path + "/" + self.list_ctrl.GetItemText(self.list_ctrl.GetFirstSelected()), channel)
+            track_name = self.list_ctrl.GetItemText(self.list_ctrl.GetFirstSelected())
+            if self.get_codec(self.path + "/" + track_name) == ".mp3" and not self.decode_is_running:
+                #print("in on key load: " +  self.player.decode_mp3(self.path + "/" + track_name, self.path_temp + "/" + track_name[:-3] + "wav"))
+                self.new_track = [self.path_temp + "/" + track_name[:-3] + "wav", channel, self.get_codec(self.path + "/" + track_name)]
+                self.decode_obj = self.player.decode_mp3(self.path + "/" + track_name, self.path_temp + "/" + track_name[:-3] + "wav")
+                self.decode_is_running = True                
+            elif self.get_codec(self.path + "/" + track_name) == ".wav":
+                self.player.load_track(self.path + "/" + track_name, channel)
+                self.player.snd_view = True
         self.refresh_list_view()
 
     def on_key_left(self):
@@ -166,16 +217,13 @@ class MyFrame(wx.Frame):
         self.cmd_state = ""
         self.cmd_chnl = ""
         self.player = player
-        
-        self.snd_view = [PyoGuiSndView(parent = self, style = wx.BORDER_NONE, size = (300, 50)), PyoGuiSndView(parent = self, size = (300, 50))]
-        self.snd_view[0].setTable(player.mono_table[0])
-        self.snd_view[1].setTable(player.mono_table[1])
+        self.snd_view = [PyoGuiSndView(parent = self, size = (300, 50)), PyoGuiSndView(parent = self, size = (300, 50))]
         self.cmd = wx.TextCtrl(parent = self, style = wx.TE_PROCESS_ENTER)
         self.text = wx.TextCtrl(parent = self)
         self.timer = wx.Timer(self)
         self.pitch = [wx.TextCtrl(parent = self, value = "0.0%", style = wx.TE_READONLY), wx.TextCtrl(parent = self, value = "0.0%", style = wx.TE_READONLY)] 
         self.pos = [wx.TextCtrl(parent = self, value = "0:00/0:00", style = wx.TE_READONLY), wx.TextCtrl(parent = self, value = "0:00/0:00", style = wx.TE_READONLY)] 
-        
+    
         self.box_sizer_v.Add(self.cmd, 0, wx.EXPAND|wx.ALIGN_LEFT|wx.ALL)
         self.box_sizer_v.Add(self.text, 0, wx.EXPAND|wx.ALIGN_LEFT|wx.ALL)
         self.box_sizer_v.Add(self.box_sizer_stat0, 0, wx.ALL)
@@ -190,6 +238,10 @@ class MyFrame(wx.Frame):
         self.timer.Start(10)
         self.Bind(wx.EVT_TIMER, self.update, self.timer)
         self.cmd.Bind(wx.EVT_TEXT_ENTER, self.new_cmd)
+
+    def refresh_snd_view(self, channel):
+        self.snd_view[channel].setTable(self.player.mono_table[channel])
+        self.snd_view[channel].update()
 
     def new_cmd(self, event):
         self.new_input = self.cmd.GetLineText(0)
@@ -280,6 +332,13 @@ class MyFrame(wx.Frame):
         self.print_msg('{:+.1f}'.format((self.player.pitch[1] - 1) * 100) + "%", self.pitch[1])
         self.print_msg(self.sec_to_str(int(self.player.phasor[0].get() * self.player.table[0].getDur()), int(self.player.table[0].getDur())), self.pos[0])
         self.print_msg(self.sec_to_str(int(self.player.phasor[1].get() * self.player.table[1].getDur()), int(self.player.table[1].getDur())), self.pos[1])
+        if self.player.refresh_snd[0]:
+            self.refresh_snd_view(0)
+            self.player.refresh_snd[0] = False
+        
+        if self.player.refresh_snd[1]:
+            self.refresh_snd_view(1)
+            self.player.refresh_snd[1] = False
     
     def print_msg(self, text, textctrl):
         textctrl.Clear()
@@ -289,10 +348,6 @@ class MyFrame(wx.Frame):
         return str(int(sec/60)) + ":" + str(sec%60).zfill(2) + "/" + str(int(dur/60)) + ":" + str(dur%60).zfill(2)        
 
 p = Player()
-p.load_track('test.wav', 0)
-p.load_track('test2.wav',1)
-p.start_stop(0)
-p.start_stop(1)
 p.server.start()
 app = wx.App()
 frame = MyFrame(p).Show()
