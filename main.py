@@ -1,12 +1,15 @@
+#!/usr/bin/env python3
+
 from pyo import *
 import wx
 import time 
 import shutil
 import subprocess
-
+import threading
+import multiprocessing 
 #GUI-TODOs: style of textctrls
-#possible issues: simultanious track loading, different wave forms, displa track name
-class Player:
+#possible issues: simultanious track loading, displa track name
+class Player():
     def __init__(self):
         self.server = Server()
         self.server.setInOutDevice(7)
@@ -41,15 +44,6 @@ class Player:
         self.highEq[1].ctrl(title = "high1")
         self.refresh_snd = [False, False]
 
-    def load_track(self, path, channel):
-        print("loading" + path)
-        self.phasor[channel].reset()
-        self.phasor[channel].freq = 0
-        self.table[channel].setSound(path)
-        self.mono_table[channel].setSound(path)
-        self.pointer[channel].table = self.table[channel]
-        self.refresh_snd[channel] = True
-
     def decode_mp3(self, i_path, o_path):
         return subprocess.Popen(["ffmpeg", "-i", i_path, o_path]) 
 
@@ -82,6 +76,56 @@ class Player:
             value /= 10 #weaker increasing than lowering
         equalizer.boost = value * 40 #max lowering 40dB
 
+class Lib:
+    def decode_mp3(self, i_path, o_path):
+        return subprocess.Popen(["ffmpeg", "-i", i_path, o_path]) 
+    
+class TrackLoader(threading.Thread):
+    def __init__(self, player, path, channel):
+        threading.Thread.__init__(self)
+        self.player = player
+        self.path = path
+        self.channel = channel
+        #thread = threading.Thread(target = self.run, args = ())
+        #thread.daemon = True
+        #thread.start()
+
+    def run(self): 
+        info = sndinfo(self.path)
+        dur = info[1]
+        #print("duration: " + str(dur))
+        cur_time = 0.0
+        step = 1.0
+        if step <= dur:
+            self.player.table[self.channel] = SndTable()
+            #self.player.tablje[self.channel].setSound(self.path, 1, step)
+            #self.player.mono_table[self.channel].setSound(self.path, 0, step)
+        else:
+            print("track too short") #TODO implement better solution
+        cur_time = step
+        flag = True
+        while flag:
+            if cur_time + step > dur:
+                step = dur - cur_time
+                flag = False
+            #stop_time = cur
+            #print("lololo")
+
+            stop_time = cur_time + step
+            try:
+                self.player.table[self.channel].append(self.path, 0, cur_time, stop_time)
+                #self.player.mono_table[self.channel].append(self.path, 0, cur_time, stop_time)
+            except TypeError as te:
+                print("arguments: {}, {}, {}".format(type(self.path), type(cur_time), type(stop_time)))
+                print(te)
+            cur_time += step
+            time.sleep(0.000001)
+
+        self.player.pointer[self.channel].table = self.player.table[self.channel]
+        self.player.phasor[self.channel].reset()
+        self.player.phasor[self.channel].freq = 0
+        self.player.refresh_snd[self.channel] = True
+
 class BrowserFrame(wx.Frame):
     def __init__(self, player):
         wx.Frame.__init__(self, None,  style = wx.NO_BORDER | wx.CAPTION)
@@ -104,7 +148,7 @@ class BrowserFrame(wx.Frame):
         self.new_track = ["", 0, ""] #[path, chnl, codec] 
         
         self.timer = wx.Timer(self)
-        self.timer.Start(10)
+        self.timer.Start(100)
         self.Bind(wx.EVT_TIMER, self.update, self.timer)
 
         self.box_sizer_v = wx.BoxSizer(wx.VERTICAL)
@@ -135,11 +179,12 @@ class BrowserFrame(wx.Frame):
 
     def update(self, event):
         if self.decode_is_running:
-            if self.decode_obj.poll() != None: #TODO: return code check
-                print("tack to load" + self.new_track[0] + "channel" + str(self.new_track[1]))
-                self.player.load_track(self.new_track[0], self.new_track[1])
+            if self.decode_is_running == True and self.decode_obj.poll() != None: #TODO: return code check
+                #self.player.load_track(self.new_track[0], self.new_track[1])
+                t = TrackLoader(self.player, self.new_track[0], self.new_track[1])
+                t.start()
                 self.player.refresh_snd[self.new_track[1]] = True
-                self.clear_temp()
+                #self.clear_temp()
                 self.decode_is_running = False
     
     def refresh_list_view (self):
@@ -178,12 +223,12 @@ class BrowserFrame(wx.Frame):
         elif self.list_ctrl.GetFirstSelected() < self.list_ctrl.GetItemCount():
             track_name = self.list_ctrl.GetItemText(self.list_ctrl.GetFirstSelected())
             if self.get_codec(self.path + "/" + track_name) == ".mp3" and not self.decode_is_running:
-                #print("in on key load: " +  self.player.decode_mp3(self.path + "/" + track_name, self.path_temp + "/" + track_name[:-3] + "wav"))
                 self.new_track = [self.path_temp + "/" + track_name[:-3] + "wav", channel, self.get_codec(self.path + "/" + track_name)]
                 self.decode_obj = self.player.decode_mp3(self.path + "/" + track_name, self.path_temp + "/" + track_name[:-3] + "wav")
                 self.decode_is_running = True                
             elif self.get_codec(self.path + "/" + track_name) == ".wav":
-                self.player.load_track(self.path + "/" + track_name, channel)
+                t = TrackLoader(self.player, self.path + "/" + track_name, channel)
+                #self.player.load_track(self.path + "/" + track_name, channel)
                 self.player.snd_view = True
         self.refresh_list_view()
 
@@ -235,7 +280,7 @@ class MyFrame(wx.Frame):
         self.box_sizer_stat1.Add(self.pitch[1], wx.ALL)
         self.box_sizer_stat1.Add(self.pos[1], wx.ALL)
         self.box_sizer_v.Fit(self)
-        self.timer.Start(10)
+        self.timer.Start(100)
         self.Bind(wx.EVT_TIMER, self.update, self.timer)
         self.cmd.Bind(wx.EVT_TEXT_ENTER, self.new_cmd)
 
