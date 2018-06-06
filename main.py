@@ -7,8 +7,10 @@ import shutil
 import subprocess
 import threading
 import multiprocessing 
+
 #GUI-TODOs: style of textctrls
-#possible issues: simultanious track loading, displa track name
+#possible issues: simultanious track loading, displa track name, delete temp files, pythonconcept?
+
 class Player():
     def __init__(self):
         self.server = Server()
@@ -16,6 +18,7 @@ class Player():
         self.server.boot()
         self.table = [SndTable(), SndTable()]
         self.mono_table = [SndTable(chnl = 0), SndTable(chnl = 0)]
+        self.title = ["", ""]
         self.isPlaying = [False, False]
         self.phasor = [Phasor(freq = 0), Phasor(freq = 0)]
         self.pointer = [Pointer(table = self.table[0], index = self.phasor[0], mul = 0.3),
@@ -86,20 +89,16 @@ class TrackLoader(threading.Thread):
         self.player = player
         self.path = path
         self.channel = channel
-        #thread = threading.Thread(target = self.run, args = ())
-        #thread.daemon = True
-        #thread.start()
 
     def run(self): 
         info = sndinfo(self.path)
         dur = info[1]
-        #print("duration: " + str(dur))
         cur_time = 0.0
         step = 1.0
         if step <= dur:
-            self.player.table[self.channel] = SndTable()
-            #self.player.tablje[self.channel].setSound(self.path, 1, step)
-            #self.player.mono_table[self.channel].setSound(self.path, 0, step)
+            #self.player.table[self.channel] = SndTable()
+            self.player.table[self.channel].setSound(self.path, 0, step)
+            self.player.mono_table[self.channel].setSound(self.path, 0, step)
         else:
             print("track too short") #TODO implement better solution
         cur_time = step
@@ -108,19 +107,14 @@ class TrackLoader(threading.Thread):
             if cur_time + step > dur:
                 step = dur - cur_time
                 flag = False
-            #stop_time = cur
-            #print("lololo")
-
             stop_time = cur_time + step
-            try:
-                self.player.table[self.channel].append(self.path, 0, cur_time, stop_time)
-                #self.player.mono_table[self.channel].append(self.path, 0, cur_time, stop_time)
-            except TypeError as te:
-                print("arguments: {}, {}, {}".format(type(self.path), type(cur_time), type(stop_time)))
-                print(te)
+            self.player.table[self.channel].append(self.path, 0, cur_time, stop_time)
+            self.player.mono_table[self.channel].append(self.path, 0, cur_time, stop_time)
             cur_time += step
             time.sleep(0.000001)
 
+        temp_str = str(self.path.split("/")[-1:])
+        self.player.title[self.channel] = temp_str[:-3]
         self.player.pointer[self.channel].table = self.player.table[self.channel]
         self.player.phasor[self.channel].reset()
         self.player.phasor[self.channel].freq = 0
@@ -228,7 +222,6 @@ class BrowserFrame(wx.Frame):
                 self.decode_is_running = True                
             elif self.get_codec(self.path + "/" + track_name) == ".wav":
                 t = TrackLoader(self.player, self.path + "/" + track_name, channel)
-                #self.player.load_track(self.path + "/" + track_name, channel)
                 self.player.snd_view = True
         self.refresh_list_view()
 
@@ -268,7 +261,7 @@ class MyFrame(wx.Frame):
         self.timer = wx.Timer(self)
         self.pitch = [wx.TextCtrl(parent = self, value = "0.0%", style = wx.TE_READONLY), wx.TextCtrl(parent = self, value = "0.0%", style = wx.TE_READONLY)] 
         self.pos = [wx.TextCtrl(parent = self, value = "0:00/0:00", style = wx.TE_READONLY), wx.TextCtrl(parent = self, value = "0:00/0:00", style = wx.TE_READONLY)] 
-    
+        self.title = [wx.TextCtrl(parent = self, value = "", style = wx.TE_READONLY), wx.TextCtrl(parent = self, value = "", style = wx.TE_READONLY)]
         self.box_sizer_v.Add(self.cmd, 0, wx.EXPAND|wx.ALIGN_LEFT|wx.ALL)
         self.box_sizer_v.Add(self.text, 0, wx.EXPAND|wx.ALIGN_LEFT|wx.ALL)
         self.box_sizer_v.Add(self.box_sizer_stat0, 0, wx.ALL)
@@ -277,8 +270,10 @@ class MyFrame(wx.Frame):
         self.box_sizer_v.Add(self.snd_view[1], 0, wx.ALL)
         self.box_sizer_stat0.Add(self.pitch[0], wx.ALL)
         self.box_sizer_stat0.Add(self.pos[0], wx.ALL)
+        self.box_sizer_stat0.Add(self.title[0], wx.ALL)
         self.box_sizer_stat1.Add(self.pitch[1], wx.ALL)
         self.box_sizer_stat1.Add(self.pos[1], wx.ALL)
+        self.box_sizer_stat1.Add(self.title[1], wx.ALL)
         self.box_sizer_v.Fit(self)
         self.timer.Start(100)
         self.Bind(wx.EVT_TIMER, self.update, self.timer)
@@ -377,6 +372,8 @@ class MyFrame(wx.Frame):
         self.print_msg('{:+.1f}'.format((self.player.pitch[1] - 1) * 100) + "%", self.pitch[1])
         self.print_msg(self.sec_to_str(int(self.player.phasor[0].get() * self.player.table[0].getDur()), int(self.player.table[0].getDur())), self.pos[0])
         self.print_msg(self.sec_to_str(int(self.player.phasor[1].get() * self.player.table[1].getDur()), int(self.player.table[1].getDur())), self.pos[1])
+        self.print_msg(self.player.title[0], self.title[0])
+        self.print_msg(self.player.title[1], self.title[1])
         if self.player.refresh_snd[0]:
             self.refresh_snd_view(0)
             self.player.refresh_snd[0] = False
