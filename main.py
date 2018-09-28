@@ -223,6 +223,7 @@ class BrowserFrame(wx.Frame):
             elif self.get_codec(self.path + "/" + track_name) == ".wav":
                 t = TrackLoader(self.player, self.path + "/" + track_name, channel)
                 self.player.snd_view = True
+        self.clear_temp()
         self.refresh_list_view()
 
     def on_key_left(self):
