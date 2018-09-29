@@ -124,6 +124,51 @@ class TrackLoader(threading.Thread):
         self.player.phasor[self.channel].freq = 0
         self.player.refresh_snd[self.channel] = True
 
+class USB_Manager():
+    def __init__(self):
+        self.is_connected = False
+        self.mountpoint = ""
+
+        self.partition_info = ""
+        self.system_partition_name = "sda" #has to be hardcoded
+
+        self.update_process_obj = None
+        self.is_updating = False
+
+    def analyze_partitions(self):
+        for line in self.partition_info.splitlines():
+            words = [x.strip() for x in line.split()]
+            maj_num = int(words[1].split(sep = ':')[1])
+            name = words[0]
+            try :
+                mountpoint = words[6]
+            except:
+                continue #has no mounting point
+            if maj_num == 8 and (self.system_partition_name not in name):
+                self.mountpoint = mountpoint
+                self.is_connected = True
+                return True
+            else:
+                return False
+
+    def update_state(self):
+        if self.is_updating:
+            if self.update_process_obj.poll() != None and self.update_process_obj.poll() != 32: #TODO: return code check
+                self.partition_info = self.update_process_obj.communicate()[0]
+                self.is_updating = False
+
+        else:
+            self.update_process_obj = subprocess.Popen(["lsblk", "-n"], universal_newlines = True, stdout = subprocess.PIPE)
+            self.is_updating = True
+
+    def get_mount_point(self, mountpoint):
+        if self.is_connected:
+            mountpoint = self.mountpoint
+            return True
+        else:
+            return False
+
+
 #issues: changing path error handling
 class BrowserFrame(wx.Frame):
     def __init__(self, player):
