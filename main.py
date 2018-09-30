@@ -9,8 +9,8 @@ import threading
 import multiprocessing 
 import os
 
-#GUI-TODOs: style of textctrls
-#possible issues: simultanious track loading, displa track name, delete temp files, pythonconcept?
+#possible issues: simultanious track loading, audio artefects when switching window (jack problem???), audio artefacts when loading?
+#TODO: error handling, pretty gui, filter/effects
 
 class Player():
     def __init__(self):
@@ -78,8 +78,9 @@ class Player():
         equalizer.boost = value * 40 #max lowering 40dB
     
 class TrackLoader(threading.Thread):
-    def __init__(self, player, path, channel):
+    def __init__(self, player, path, channel, clear_temp_dir):
         threading.Thread.__init__(self)
+        self.clear_temp_dir = clear_temp_dir
         self.player = player
         self.path = path
         self.channel = channel
@@ -116,6 +117,7 @@ class TrackLoader(threading.Thread):
         self.player.phasor[self.channel].reset()
         self.player.phasor[self.channel].freq = 0
         self.player.refresh_snd[self.channel] = True
+        self.clear_temp_dir()
 
 class USB_Manager():
     def __init__(self):
@@ -174,22 +176,19 @@ class USB_Manager():
             return [False, self.mountpoint]
 
 class Decoder():
-    def __init__(self, path_temp, player):
+    def __init__(self, path_temp, player, clear_temp_dir):
+        self.clear_temp_dir = clear_temp_dir
         self.decode_is_running = False
         self.decode_obj = None
         self.path_temp = path_temp
-        self.path_track = ""
+        #self.path_track = ""
         self.new_track = ["", 0, ""] #[path, chnl, codec]
+        self.track_name = "" #is it really necessary
         self.player = player
 
     def update_decoder(self, event):
-        if self.decode_is_running == True and self.decode_obj.poll() != None:  # TODO: return code check
-            # self.player.load_track(self.new_track[0], self.new_track[1])
-            #
-            #!!!!!!!!!!!!!!!!
-            #
-            #player  issue
-            t = TrackLoader(self.player, self.new_track[0], self.new_track[1])
+        if self.decode_is_running == True and self.decode_obj.poll() is not None:  # TODO: return code check
+            t = TrackLoader(self.player, self.path_temp + "/" + self.track_name[:-3] + "wav", self.new_track[1], self.clear_temp_dir)
             t.start()
             self.player.refresh_snd[self.new_track[1]] = True
             # self.clear_temp_dir()
@@ -197,7 +196,8 @@ class Decoder():
 
     def load_mp3(self, track_name, new_track):
         self.new_track = new_track
-        self.decode_obj = subprocess.Popen(["ffmpeg", "-i", self.new_track[0] + "/" + track_name,
+        self.track_name = track_name
+        self.decode_obj = subprocess.Popen(["ffmpeg", "-i", self.new_track[0],
                                             self.path_temp + "/" + track_name[:-3] + "wav"])
         self.decode_is_running = True
 
@@ -212,7 +212,7 @@ class BrowserFrame(wx.Frame):
 
         self.player = player
         self.usb = USB_Manager()
-        self.decoder = Decoder(self.path_temp, player)
+        self.decoder = Decoder(self.path_temp, player, self.clear_temp_dir)
 
         #init temp dir
         if os.path.isdir(self.path_temp):
@@ -258,7 +258,6 @@ class BrowserFrame(wx.Frame):
             self.path_root = result[1]
             self.path = self.path_root
             self.refresh_list_view()
-            print("path after new mount:" + self.path_root)
 
     def clear_temp_dir(self):
         for the_file in os.listdir(self.path_temp):
@@ -266,7 +265,7 @@ class BrowserFrame(wx.Frame):
             try:
                 if os.path.isfile(file_path):
                     os.unlink(file_path)
-                elif os.path.isdir(file_path): 
+                elif os.path.isdir(file_path):
                     shutil.rmtree(file_path)
             except Exception as e:
                 print(e)
@@ -279,13 +278,9 @@ class BrowserFrame(wx.Frame):
         del self.dir_list[:]
         del self.track_list[:]
 
-        print("in refresh list view, device connected: " + str(self.usb.device_connected))
-
         if not self.usb.device_connected:
-            print("abort cause no usb sotrage")
             return
 
-        print("in refresh_list_view, path: " + self.path + "root_path: " + self.path_root)
         for item in os.listdir(self.path):
             if os.path.isdir(self.path + "/" + item): 
                 self.dir_list.append(item)
@@ -316,13 +311,14 @@ class BrowserFrame(wx.Frame):
             self.dir_lvl += 1
         elif self.list_ctrl.GetFirstSelected() < self.list_ctrl.GetItemCount():
             track_name = self.list_ctrl.GetItemText(self.list_ctrl.GetFirstSelected())
+            print(track_name)
             if self.get_codec(self.path + "/" + track_name) == ".mp3" and not self.decoder.decode_is_running:
-                new_track = [self.path_temp + "/" + track_name[:-3] + "wav", channel, self.get_codec(self.path + "/" + track_name)]
+                new_track = [self.path + "/" + track_name, channel, self.get_codec(self.path + "/" + track_name)]
                 self.decoder.load_mp3(track_name, new_track)
+                print("new track: " + str(new_track))
             elif self.get_codec(self.path + "/" + track_name) == ".wav":
-                t = TrackLoader(self.player, self.path + "/" + track_name, channel)
+                t = TrackLoader(self.player, self.path + "/" + track_name, channel, self.clear_temp_dir)
                 self.player.snd_view = True
-        self.clear_temp_dir()
         self.refresh_list_view()
 
     def on_key_left(self):
