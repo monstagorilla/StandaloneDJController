@@ -48,9 +48,6 @@ class Player():
         self.highEq[1].ctrl(title = "high1")
         self.refresh_snd = [False, False]
 
-    def decode_mp3(self, i_path, o_path):
-        return subprocess.Popen(["ffmpeg", "-i", i_path, o_path]) 
-
     def start_stop(self, channel):
         if self.isPlaying[channel]:
             self.phasor[channel].freq = 0
@@ -79,10 +76,6 @@ class Player():
         if value > 0:
             value /= 10 #weaker increasing than lowering
         equalizer.boost = value * 40 #max lowering 40dB
-
-class Lib:
-    def decode_mp3(self, i_path, o_path):
-        return subprocess.Popen(["ffmpeg", "-i", i_path, o_path]) 
     
 class TrackLoader(threading.Thread):
     def __init__(self, player, path, channel):
@@ -126,7 +119,8 @@ class TrackLoader(threading.Thread):
 
 class USB_Manager():
     def __init__(self):
-        self.is_connected = False
+        self.device_connected = False
+        self.new_mountpoint = False
         self.mountpoint = ""
 
         self.partition_info = ""
@@ -138,76 +132,108 @@ class USB_Manager():
     def analyze_partitions(self):
         for line in self.partition_info.splitlines():
             words = [x.strip() for x in line.split()]
-            maj_num = int(words[1].split(sep = ':')[1])
+            maj_num = int(words[1].split(sep = ':')[0])
             name = words[0]
-            try :
+            #print(line)
+            #print("maj_num: " + str(maj_num) + "name: " + name)
+            try:
                 mountpoint = words[6]
             except:
+                #print("no mounting point")
                 continue #has no mounting point
             if maj_num == 8 and (self.system_partition_name not in name):
-                self.mountpoint = mountpoint
-                self.is_connected = True
-                return True
-            else:
-                return False
+                self.device_connected = True
+                if self.mountpoint == mountpoint:
+                    pass
+                else:
+                    self.mountpoint = mountpoint
+                    self.new_mountpoint = True
+                return
 
-    def update_state(self):
+        self.device_connected = False
+        self.mountpoint = ""
+
+    def update_state(self, event):
+        #print("call update_state")
         if self.is_updating:
             if self.update_process_obj.poll() != None and self.update_process_obj.poll() != 32: #TODO: return code check
                 self.partition_info = self.update_process_obj.communicate()[0]
+                #print(self.partition_info)
+                self.analyze_partitions()
                 self.is_updating = False
-
         else:
             self.update_process_obj = subprocess.Popen(["lsblk", "-n"], universal_newlines = True, stdout = subprocess.PIPE)
             self.is_updating = True
 
-    def get_mount_point(self, mountpoint):
-        if self.is_connected:
-            mountpoint = self.mountpoint
-            return True
+    #return True if mountpoint is new
+    def get_mount_point(self):
+        if self.new_mountpoint:
+            self.new_mountpoint = False
+            return [True, self.mountpoint]
         else:
-            return False
+            return [False, self.mountpoint]
+
+class Decoder():
+    def __init__(self, path_temp, player):
+        self.decode_is_running = False
+        self.decode_obj = None
+        self.path_temp = path_temp
+        self.path_track = ""
+        self.new_track = ["", 0, ""] #[path, chnl, codec]
+        self.player = player
+
+    def update_decoder(self, event):
+        if self.decode_is_running == True and self.decode_obj.poll() != None:  # TODO: return code check
+            # self.player.load_track(self.new_track[0], self.new_track[1])
+            #
+            #!!!!!!!!!!!!!!!!
+            #
+            #player  issue
+            t = TrackLoader(self.player, self.new_track[0], self.new_track[1])
+            t.start()
+            self.player.refresh_snd[self.new_track[1]] = True
+            # self.clear_temp_dir()
+            self.decode_is_running = False
+
+    def load_mp3(self, track_name, new_track):
+        self.new_track = new_track
+        self.decode_obj = subprocess.Popen(["ffmpeg", "-i", self.new_track[0] + "/" + track_name,
+                                            self.path_temp + "/" + track_name[:-3] + "wav"])
+        self.decode_is_running = True
 
 
-#issues: changing path error handling
 class BrowserFrame(wx.Frame):
     def __init__(self, player):
         wx.Frame.__init__(self, None,  style = wx.NO_BORDER | wx.CAPTION)
-        self.player = player
-        
-        self.device_connected = False
 
-        self.partitions_file = "~/temp_partition_info"       
-
-        self.path_update_is_running = False        
         self.path = ""
         self.path_root = ""
-        self.path_update_obj = None
-        try:
-            os.remove(os.path.expanduser("~/temp_partition_info"))
-        except:
-            print("no temp file")
-        self.init_paths()
-
         self.path_temp = os.path.expanduser("~/temp_standalone_dj_controller")
-        
+
+        self.player = player
+        self.usb = USB_Manager()
+        self.decoder = Decoder(self.path_temp, player)
+
+        #init temp dir
         if os.path.isdir(self.path_temp):
-            self.clear_temp()
+            self.clear_temp_dir()
         else:
             os.mkdir(self.path_temp)
+
+        self.timer = wx.Timer(self)
+        self.timer.Start(100)
+        self.timer1 = wx.Timer(self)
+        self.timer1.Start(100)
+        self.timer2 = wx.Timer(self)
+        self.timer2.Start(100)  #possible longer intervals
+        self.Bind(wx.EVT_TIMER, self.decoder.update_decoder, self.timer)
+        self.Bind(wx.EVT_TIMER, self.usb.update_state, self.timer1)
+        self.Bind(wx.EVT_TIMER, self.update_mountpoint, self.timer2)
+
         self.dir_list = []
         self.track_list = []
         self.index = 0
         self.dir_lvl = 0
-
-        self.decode_is_running = False
-        self.decode_obj = None
-        
-        self.new_track = ["", 0, ""] #[path, chnl, codec] 
-        
-        self.timer = wx.Timer(self)
-        self.timer.Start(100)
-        self.Bind(wx.EVT_TIMER, self.update, self.timer)
 
         self.box_sizer_v = wx.BoxSizer(wx.VERTICAL)
         self.SetSizer(self.box_sizer_v)
@@ -220,62 +246,21 @@ class BrowserFrame(wx.Frame):
         self.box_sizer_v.Add(self.path_label, 0, wx.ALL)
         self.box_sizer_v.Add(self.list_ctrl, 0, wx.ALL)
         self.box_sizer_v.Fit(self)
-        
+
         self.list_ctrl.Bind(wx.EVT_KEY_DOWN, self.on_key_pressed)
         self.list_ctrl.SetFocus()
-    def init_paths(self):
-        while True: 
-            print("scuuurrr")
-            self.usb_path_update()
-            if not self.path_update_is_running:
-                break
-        
-             
-    def usb_path_update(self):
-        if self.path_update_is_running:
-            if self.path_update_obj.poll() != None and self.path_update_obj.poll() != 32: #TODO: return code check
-                print(self.path_update_obj.poll())
-                #print(self.path_update_obj.communicate()[0])
-                #partitions_file = open(os.path.expanduser("~/temp_partition_info"))
-                lines = self.path_update_obj.communicate()[0]
-                for line in lines.splitlines():
-                    print (lines)
-                    words = [x.strip() for x in line.split()]
-                    minor_num = int(words[1].split(sep = ':')[1]) 
-                    major_num = int(words[1].split(sep = ':')[0]) 
-                    print(minor_num)
-                    print(major_num)
-                    name = words[0]
-                    print(name)
-                    print(words)        
-                    try:
-                        mountpoint = words[6]
-                    except:
-                        print("no mounting point")
-                        continue
-                    if major_num == 8 and minor_num%16 == 0 and name != "sda" : #device type is sd, partition is not system partition    
-                        self.path_root = mountpoint
-                        self.path = mountpoint
-                        print("mountpoint: " + mountpoint) 
-                        self.path_update_is_running = False
-                        self.device_connected = True
-                        return 
-                        
-                    #if os.path.islink(path):
-                    #    if os.path.realpath(path).find("/usb") > 0:
-                    #        print "/dev/%s" % deviceName
-                    else:
-                        print("no valid usb storage device found")
-                self.path_update_is_running = False
-                self.device_connected = False     
-        else:
-            self.path_update_obj = subprocess.Popen(["lsblk", "-n"], universal_newlines = True, stdout = subprocess.PIPE)
-            print ("still in game")
-            self.path_update_is_running = True
-    
-    def clear_temp(self):
-        if not self.device_connected:
-            return
+
+    def update_mountpoint(self, event):
+        result = self.usb.get_mount_point()
+        #print(result)
+        if result[0] or not self.usb.device_connected: #mountpoint is a new one
+            #update paths 'cause of new device
+            self.path_root = result[1]
+            self.path = self.path_root
+            self.refresh_list_view()
+            print("path after new mount:" + self.path_root)
+
+    def clear_temp_dir(self):
         for the_file in os.listdir(self.path_temp):
             file_path = os.path.join(self.path_temp, the_file)
             try:
@@ -286,24 +271,21 @@ class BrowserFrame(wx.Frame):
             except Exception as e:
                 print(e)
 
-    def update(self, event):
-        if self.decode_is_running == True and self.decode_obj.poll() != None: #TODO: return code check
-            #self.player.load_track(self.new_track[0], self.new_track[1])
-            t = TrackLoader(self.player, self.new_track[0], self.new_track[1])
-            t.start()
-            self.player.refresh_snd[self.new_track[1]] = True
-            #self.clear_temp()
-            self.decode_is_running = False
-    
     def refresh_list_view (self):
-        if not self.device_connected:
-            return
         self.index = 0
+
+        #clear ListView
         self.list_ctrl.DeleteAllItems()
         del self.dir_list[:]
         del self.track_list[:]
-        if not self.device_connected: 
+
+        print("in refresh list view, device connected: " + str(self.usb.device_connected))
+
+        if not self.usb.device_connected:
+            print("abort cause no usb sotrage")
             return
+
+        print("in refresh_list_view, path: " + self.path + "root_path: " + self.path_root)
         for item in os.listdir(self.path):
             if os.path.isdir(self.path + "/" + item): 
                 self.dir_list.append(item)
@@ -327,8 +309,6 @@ class BrowserFrame(wx.Frame):
         return path[-4:]
 
     def on_key_load(self, channel):
-        if not self.device_connected:
-            return
         if self.list_ctrl.GetSelectedItemCount() != 1:
             pass
         elif self.list_ctrl.GetFirstSelected() < len(self.dir_list):
@@ -336,14 +316,13 @@ class BrowserFrame(wx.Frame):
             self.dir_lvl += 1
         elif self.list_ctrl.GetFirstSelected() < self.list_ctrl.GetItemCount():
             track_name = self.list_ctrl.GetItemText(self.list_ctrl.GetFirstSelected())
-            if self.get_codec(self.path + "/" + track_name) == ".mp3" and not self.decode_is_running:
-                self.new_track = [self.path_temp + "/" + track_name[:-3] + "wav", channel, self.get_codec(self.path + "/" + track_name)]
-                self.decode_obj = self.player.decode_mp3(self.path + "/" + track_name, self.path_temp + "/" + track_name[:-3] + "wav")
-                self.decode_is_running = True                
+            if self.get_codec(self.path + "/" + track_name) == ".mp3" and not self.decoder.decode_is_running:
+                new_track = [self.path_temp + "/" + track_name[:-3] + "wav", channel, self.get_codec(self.path + "/" + track_name)]
+                self.decoder.load_mp3(track_name, new_track)
             elif self.get_codec(self.path + "/" + track_name) == ".wav":
                 t = TrackLoader(self.player, self.path + "/" + track_name, channel)
                 self.player.snd_view = True
-        self.clear_temp()
+        self.clear_temp_dir()
         self.refresh_list_view()
 
     def on_key_left(self):
@@ -353,6 +332,8 @@ class BrowserFrame(wx.Frame):
             self.dir_lvl -= 1
 
     def on_key_pressed(self, event):
+        if not self.usb.device_connected:
+            return
         keycode = event.GetKeyCode()
         if keycode == wx.WXK_NUMPAD0 or keycode == wx.WXK_RIGHT:
             self.on_key_load(0)
