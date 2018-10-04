@@ -1,3 +1,6 @@
+#: import main djgui
+#: import DJGUI djgui
+
 <LabelWithBackground@Label>:
     background_color: 1, 0, 0, 0
     canvas.before:
@@ -7,6 +10,7 @@
             pos: self.pos
             size: self.size
 
+DJGUI:
 <DJGUI>:
     orientation: "vertical"
     padding: 10
@@ -14,19 +18,35 @@
 
     LabelWithBackground:
         text: "render track1"
-        height: 30
         size_hint: 1, None
+        height: 30
 
     LabelWithBackground:
         text: "render track1"
-        height: 30
         size_hint: 1, None
+        height: 30
 
     BoxLayout:
         padding: 10
         spacing: 10
-        LabelWithBackground:
-            text: "Deck 1"
+        BoxLayout:
+            orientation: "vertical"
+            padding: 10
+            spacing: 10
+            LabelWithBackground:
+                text: "render track overview"
+                size_hint: 1, None
+                height: 10
+            Label:
+                text: root.time
 
-        LabelWithBackground:
-            text: "Deck 2"
+        BoxLayout:
+            orientation: "vertical"
+            padding: 10
+            spacing: 10
+            LabelWithBackground:
+                text: "render track overview"
+                size_hint: 1, None
+                height: 10
+            Label:
+                text: root.time

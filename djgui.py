@@ -1,8 +1,9 @@
 from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.label import Label
+from kivy.properties import StringProperty
 
 class DJGUI(BoxLayout):
+    time = StringProperty("0:00/0:00")
     pass
 
 class DJGUIApp(App):
