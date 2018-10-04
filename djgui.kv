@@ -5,10 +5,18 @@
     background_color: 1, 0, 0, 0
     canvas.before:
         Color:
-            rgb: 1, 0.5, 1 # your color here
+            rgb: 1, 0.5, 1
         Rectangle:
             pos: self.pos
             size: self.size
+
+<AudioVisualizer>:
+    #canvas.after:
+    #    Color:
+    #        rgb: 1, 0.5, 1
+    #    Line:
+    #        points: root.line_points
+    #        width: 1
 
 DJGUI:
 <DJGUI>:
@@ -16,10 +24,7 @@ DJGUI:
     padding: 10
     spacing: 10
 
-    LabelWithBackground:
-        text: "render track1"
-        size_hint: 1, None
-        height: 30
+    AudioVisualizer:
 
     LabelWithBackground:
         text: "render track1"

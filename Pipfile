@@ -9,6 +9,8 @@ docutils = "*"
 pygments = "*"
 cython = "*"
 pygame = "*"
+numpy = "*"
+scipy = "*"
 
 [dev-packages]
 
