@@ -15,7 +15,7 @@ class AudioVisualizer(Widget):
         super(AudioVisualizer, self).__init__(**kwargs)
         raw_data = wavfile.read('/home/monstagorilla/Music/Indigo (Alex Niggemann Remix).wav')[1]
         data = []
-        for x in raw_data:
+        for x in raw_data[::50]:
             data.append(abs(x[0]))
 
         win_width = 400
@@ -32,7 +32,7 @@ class AudioVisualizer(Widget):
         with self.canvas.after:
             Color(1, 0.5, 1)
             for x in range(0, len(line_points)):
-                Line(points=[x, 0, x, line_points[x]], width=1)
+                Line(points=[self.center_x + x, self.center_y - line_points[x], self.center_x + x, self.center_y + line_points[x]])
 
 class DJGUI(BoxLayout):
     time = StringProperty("0:00/0:00")

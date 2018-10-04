@@ -24,7 +24,6 @@ DJGUI:
     padding: 10
     spacing: 10
 
-    AudioVisualizer:
 
     LabelWithBackground:
         text: "render track1"
@@ -38,10 +37,7 @@ DJGUI:
             orientation: "vertical"
             padding: 10
             spacing: 10
-            LabelWithBackground:
-                text: "render track overview"
-                size_hint: 1, None
-                height: 10
+            AudioVisualizer:
             Label:
                 text: root.time
 
