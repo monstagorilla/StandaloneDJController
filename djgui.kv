@@ -1,0 +1,32 @@
+<LabelWithBackground@Label>:
+    background_color: 1, 0, 0, 0
+    canvas.before:
+        Color:
+            rgb: 1, 0.5, 1 # your color here
+        Rectangle:
+            pos: self.pos
+            size: self.size
+
+<DJGUI>:
+    orientation: "vertical"
+    padding: 10
+    spacing: 10
+
+    LabelWithBackground:
+        text: "render track1"
+        height: 30
+        size_hint: 1, None
+
+    LabelWithBackground:
+        text: "render track1"
+        height: 30
+        size_hint: 1, None
+
+    BoxLayout:
+        padding: 10
+        spacing: 10
+        LabelWithBackground:
+            text: "Deck 1"
+
+        LabelWithBackground:
+            text: "Deck 2"
