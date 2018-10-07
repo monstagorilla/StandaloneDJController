@@ -2,7 +2,6 @@
 #: import DJGUI djgui
 
 <LabelWithBackground@Label>:
-    background_color: 1, 0, 0, 0
     canvas.before:
         Color:
             rgb: 1, 0.5, 1
@@ -11,43 +10,78 @@
             size: self.size
 
 <AudioVisualizer>:
-    #canvas.after:
-    #    Color:
-    #        rgb: 1, 0.5, 1
-    #    Line:
-    #        points: root.line_points
-    #        width: 1
 
-DJGUI:
 <DJGUI>:
     orientation: "vertical"
     padding: 10
     spacing: 10
-
-
     LabelWithBackground:
         text: "render track1"
         size_hint: 1, None
-        height: 30
+        height: 60
+
+    LabelWithBackground:
+        text: "render track2"
+        size_hint: 1, None
+        height: 60
 
     BoxLayout:
-        padding: 10
-        spacing: 10
+        orientation: "horizontal"
+        #padding: 10
+        #spacing: 10
+
         BoxLayout:
             orientation: "vertical"
-            padding: 10
-            spacing: 10
-            AudioVisualizer:
-            Label:
-                text: root.time
+            #padding: 10
+            #spacing: 10
+
+            BoxLayout:
+                orientation: "horizontal"
+                BoxLayout:
+                    orientation: "vertical"
+
+                    Label:
+                        text: root.track_name[0]
+                        size_hint: 1, None
+                        height: 20
+                        #alignment: Left
+                    LabelWithBackground:
+                        text: "render track 1"
+                        size_hint: 1, None
+                        height: 20
+
+            #track info
+                BoxLayout:
+                    orientation: "vertical"
+                    Label:
+                        text: root.time[0]
+                        size_hint: 1, None
+                        height: 20
+                    Label:
+                        text: root.bpm[0]
+                        size_hint: 1, None
+                        height: 20
+
+            LabelWithBackground:
+                text: "playbutton, loop etc."
+                size_hint: 1, 1
+
+            LabelWithBackground:
+                text: "playbutton, loop etc."
+                size_hint: 1, 1
+
+
+
+        LabelWithBackground:
+            size_hint: None, 1
+            width: 10
+
+        LabelWithBackground:
+            size_hint: None, 1
+            width: 10
 
         BoxLayout:
             orientation: "vertical"
             padding: 10
             spacing: 10
-            LabelWithBackground:
-                text: "render track overview"
-                size_hint: 1, None
-                height: 10
-            Label:
-                text: root.time
+
