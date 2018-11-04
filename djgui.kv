@@ -11,10 +11,7 @@
             size: self.size
 
 <AudioVisualizer>:
-    canvas:
-        #Line:
-        #    width: 1
-            #points: root.line_points
+
 
 DJGUI:
 <DJGUI>:
@@ -96,7 +93,7 @@ DJGUI:
             orientation: "vertical"
             spacing: 2
 
-            LabelWithBackground:
+            Label:
                 text: root.title[1]
                 size_hint: 1, None
                 height: 20
@@ -112,15 +109,15 @@ DJGUI:
                 height: 20
                 orientation: "horizontal"
                 spacing: 2
-                LabelWithBackground:
+                Label:
                     text: root.time[1]
                     size_hint: 1, None
                     height: 20
-                LabelWithBackground:
+                Label:
                     text: root.bpm[1]
                     size_hint: 1, None
                     height: 20
-                LabelWithBackground:
+                Label:
                     text: "Headphones"
                     size_hint: 1, None
                     height: 20
