@@ -33,6 +33,7 @@ class AudioVisualizer(Widget):
     def _update_pos(self, instance, value):
         self.abs_pos = instance.pos
         print("new pos: " + str(self.abs_pos))
+        self.on_wav_data(instance, value)
 
     def _keyboard_closed(self):
         self._keyboard.unbind(on_key_down=self._on_keyboard_down)
@@ -49,6 +50,8 @@ class AudioVisualizer(Widget):
 
     def _update_size(self, instance, value):
         self.abs_size = instance.size
+        self.on_wav_data(instance, value)
+
 
     def on_wav_data(self, instance, value):
         if self.width > 0:
