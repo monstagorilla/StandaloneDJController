@@ -1,17 +1,15 @@
 #: import main djgui
 #: import DJGUI djgui
 
+#:set color_deck (1, 0, 0.5)
+
 <LabelWithBackground@Label>:
-    color: root.color_font
     canvas.before:
         Color:
             rgb: root.color_widget
         Rectangle:
             pos: self.pos
             size: self.size
-
-<AudioVisualizer>:
-
 
 DJGUI:
 <DJGUI>:
@@ -33,6 +31,8 @@ DJGUI:
         text: "render track2"
         size_hint: 1, None
         height: 60
+        color: root.color_font
+
 
     BoxLayout:
         orientation: "horizontal"
@@ -44,8 +44,8 @@ DJGUI:
             orientation: "vertical"
             spacing: 2
 
-            LabelWithBackground:
-                text: root.title[0]
+            Label:
+                text: root.title0
                 size_hint: 1, None
                 height: 20
 
@@ -60,15 +60,15 @@ DJGUI:
                 height: 20
                 orientation: "horizontal"
                 spacing: 2
-                LabelWithBackground:
+                Label:
                     text: root.time[0]
                     size_hint: 1, None
                     height: 20
-                LabelWithBackground:
-                    text: root.bpm[0]
+                Label:
+                    text: root.bpm0
                     size_hint: 1, None
                     height: 20
-                LabelWithBackground:
+                Label:
                     text: "Headphones"
                     size_hint: 1, None
                     height: 20
@@ -94,7 +94,7 @@ DJGUI:
             spacing: 2
 
             Label:
-                text: root.title[1]
+                text: root.title1
                 size_hint: 1, None
                 height: 20
 
@@ -102,6 +102,7 @@ DJGUI:
                 id: av_r
                 size_hint: 1, None
                 height: 30
+                #color_deck: (1 ,0 , 1)
 
             #track info
             BoxLayout:
@@ -114,7 +115,7 @@ DJGUI:
                     size_hint: 1, None
                     height: 20
                 Label:
-                    text: root.bpm[1]
+                    text: root.bpm1
                     size_hint: 1, None
                     height: 20
                 Label:
