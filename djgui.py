@@ -4,9 +4,8 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.properties import ObjectProperty, StringProperty, ListProperty
 from kivy.uix.widget import Widget
 from kivy.uix.label import Label
-from kivy.graphics import Rectangle, Line, Color
+from kivy.graphics import Line, Color
 from kivy.core.window import Window
-from kivy.clock import Clock
 from numpy import mean
 
 
@@ -31,7 +30,6 @@ class AudioVisualizer(Widget):
 
     def _update_pos(self, instance, value):
         self.abs_pos = instance.pos
-        print("new pos: " + str(self.abs_pos))
         self.on_wav_data(instance, value)
 
     def _update_size(self, instance, value):
@@ -159,43 +157,3 @@ if __name__ == '__main__':
     #Window.fullscreen = True
     Window.size = [600, 300]
     app.run()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#--------backend code-------#
-    #def on_path(self, instance, value):
-        #raw_data = wavfile.read('/home/monstagorilla/Music/Indigo (Alex Niggemann Remix).wav')[1]
-        #abs_data = []
-        #for x in raw_data[::50]:
-        #    abs_data.append(abs(x[0]))
-
-        #width = 330
-        #chunk_size = int(len(abs_data)/width)
-        #mean_data = []
-        #for x in range(0, width):
-        #    try:
-        #        mean_data.append(mean(abs_data[x * chunk_size: (x + 1) * chunk_size]))
-        #    except:
-        #        pass
-        #
-        #max_val = max(mean_data)
-        #amp = 20
-        #for x in range(0, width):
-        #    self.line_points.extend([self.visual_pos[0] + x, self.visual_pos[1] - mean_data[x] * amp / max_val, self.visual_pos[0] + x, self.visual_pos[1] + mean_data[x] * amp / max_val])
