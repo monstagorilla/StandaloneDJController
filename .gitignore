@@ -1,3 +1,6 @@
 .swp
 .main.py.swp
 test.wav
+.idea/
+Pipfile.lock
+__pycache__

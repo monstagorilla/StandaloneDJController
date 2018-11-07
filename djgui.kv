@@ -1,0 +1,137 @@
+#: import main djgui
+#: import DJGUI djgui
+
+#:set color_deck (1, 0, 0.5)
+
+<LabelWithBackground@Label>:
+    canvas.before:
+        Color:
+            rgb: root.color_widget
+        Rectangle:
+            pos: self.pos
+            size: self.size
+
+DJGUI:
+<DJGUI>:
+    orientation: "vertical"
+    spacing: 2
+    padding: 2
+    canvas.before:
+        Color:
+            rgb: 0,0,0
+        Rectangle:
+            pos: self.pos
+            size: self.size
+    LabelWithBackground:
+        text: "render track1"
+        size_hint: 1, None
+        height: 60
+
+    LabelWithBackground:
+        text: "render track2"
+        size_hint: 1, None
+        height: 60
+        color: root.color_font
+
+
+    BoxLayout:
+        orientation: "horizontal"
+        spacing: 2
+
+
+#-------------------Deck1-----------------#
+        BoxLayout:
+            orientation: "vertical"
+            spacing: 2
+
+            Label:
+                text: root.title0
+                size_hint: 1, None
+                height: 20
+
+            AudioVisualizer:
+                id: av_l
+                size_hint: 1, None
+                height: 30
+
+            #track info
+            BoxLayout:
+                size_hint: 1, None
+                height: 20
+                orientation: "horizontal"
+                spacing: 2
+                Label:
+                    text: root.time0
+                    size_hint: 1, None
+                    height: 20
+                Label:
+                    text: root.bpm0
+                    size_hint: 1, None
+                    height: 20
+                Label:
+                    text: root.pitch0
+                    size_hint: 1, None
+                    height: 20
+                Label:
+                    text: "Headphones"
+                    size_hint: 1, None
+                    height: 20
+
+            LabelWithBackground:
+                text: "playbutton, loop etc."
+                size_hint: 1, 1
+
+
+
+#-------------------VU-Meter-----------------#
+        LabelWithBackground:
+            size_hint: None, 1
+            width: 10
+
+        LabelWithBackground:
+            size_hint: None, 1
+            width: 10
+
+#-------------------Deck2-----------------#
+        BoxLayout:
+            orientation: "vertical"
+            spacing: 2
+
+            Label:
+                text: root.title1
+                size_hint: 1, None
+                height: 20
+
+            AudioVisualizer:
+                id: av_r
+                size_hint: 1, None
+                height: 30
+                #color_deck: (1 ,0 , 1)
+
+            #track info
+            BoxLayout:
+                size_hint: 1, None
+                height: 20
+                orientation: "horizontal"
+                spacing: 2
+                Label:
+                    text: root.time1
+                    size_hint: 1, None
+                    height: 20
+                Label:
+                    text: root.bpm1
+                    size_hint: 1, None
+                    height: 20
+                Label:
+                    text: root.pitch1
+                    size_hint: 1, None
+                    height: 20
+                Label:
+                    text: "Headphones"
+                    size_hint: 1, None
+                    height: 20
+
+            LabelWithBackground:
+                text: "playbutton, loop etc."
+                size_hint: 1, 1
+

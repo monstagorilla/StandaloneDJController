@@ -484,9 +484,10 @@ class MyFrame(wx.Frame):
     def sec_to_str(self, sec, dur):
         return str(int(sec/60)) + ":" + str(sec%60).zfill(2) + "/" + str(int(dur/60)) + ":" + str(dur%60).zfill(2)        
 
-p = Player()
-p.server.start()
-app = wx.App()
-frame = MyFrame(p).Show()
-frame1 = BrowserFrame(p).Show()
-app.MainLoop()
+if __name__ == "__main__":
+    p = Player()
+    p.server.start()
+    app = wx.App()
+    frame = MyFrame(p).Show()
+    frame1 = BrowserFrame(p).Show()
+    app.MainLoop()
