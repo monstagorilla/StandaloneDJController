@@ -1,6 +1,5 @@
-
 import subprocess
-
+from trackloader import TrackLoader
 
 class Decoder():
     def __init__(self, path_temp, player, clear_temp_dir):
@@ -13,11 +12,11 @@ class Decoder():
         self.track_name = "" #is it really necessary
         self.player = player
 
-    def update_decoder(self, event):
-        if self.decode_is_running == True and self.decode_obj.poll() is not None:  # TODO: return code check
+    def update_decoder(self, dt):
+        if self.decode_is_running is True and self.decode_obj.poll() is not None:  # TODO: return code check
             t = TrackLoader(self.player, self.path_temp + "/" + self.track_name[:-3] + "wav", self.new_track[1], self.clear_temp_dir)
             t.start()
-            self.player.refresh_snd[self.new_track[1]] = True
+            #self.player.refresh_snd[self.new_track[1]] = True
             # self.clear_temp_dir()
             self.decode_is_running = False
 

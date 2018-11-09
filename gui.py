@@ -10,6 +10,8 @@ from numpy import mean
 from typing import List
 from player import Player
 from file_browser import FileBrowser
+from decoder import Decoder
+from kivy.clock import Clock
 
 
 class Track:
@@ -93,8 +95,11 @@ class GUI(BoxLayout):
         self.player = Player(self)
 
         self.file_browser = FileBrowser()
+        self.decoder = Decoder(self.file_browser.path_temp, self.player, self.file_browser.clear_temp_dir)
         #self.temp_widget_tree = None
         self.is_browsing = False
+
+        Clock.schedule_interval(self.decoder.update_decoder, 0.1)
 
 
     #----------------------------------Properties------------------------------------#
@@ -244,6 +249,16 @@ class GUI(BoxLayout):
                             self.file_browser.path = x.path
                         else:
                             print("load_track")
+                            if self.file_browser.get_codec(x.path) == "mp3" and not self.decoder.decode_is_running:
+                                new_track = [x.path, 0, "mp3"]
+                                track_name = "/".join(x.path.split("/")[-1:])
+                                self.decoder.load_mp3(track_name, new_track)
+                                print("new track: " + str(new_track))
+                            elif self.get_codec(self.path + "/" + track_name) == ".wav":
+                                pass
+                                #t = TrackLoader(self.player, self.path + "/" + track_name, channel, self.clear_temp_dir)
+                                #self.player.snd_view = True
+
             elif keycode[1] == 'left':
                 if self.file_browser.path != self.file_browser.rootpath:
                     self.file_browser.path = "/".join(self.file_browser.path.split("/")[:-1])

@@ -43,4 +43,5 @@ class TrackLoader(threading.Thread):
         self.player.phasor[self.channel].reset()
         self.player.phasor[self.channel].freq = 0
         self.player.refresh_snd[self.channel] = True
+        self.player.start_stop(0)
         self.clear_temp_dir()

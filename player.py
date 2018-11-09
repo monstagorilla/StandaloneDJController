@@ -6,7 +6,9 @@ class Player:
     def __init__(self, gui) -> None:
         self.gui = gui
         self.server = Server()
-        self.server.setInOutDevice(7)
+        self.server.setInOutDevice(6)
+        #self.server.setInputDevice(6)
+        #self.server.setOutputDevice(6)
         self.server.boot()
         self.server.start()
         self.table = [SndTable(), SndTable()]

@@ -33,11 +33,6 @@ class FileBrowser(FileChooserListView):
         else:
             os.mkdir(self.path_temp)
 
-        self.dir_list = []
-        self.track_list = []
-        self.index = 0
-        self.dir_lvl = 0
-
         if len(self._items) > 0:
             self._items[0].is_selected = True
 
@@ -63,6 +58,6 @@ class FileBrowser(FileChooserListView):
             self.refresh_list_view()
 
     def get_codec(self, path):
-        if len(path) < 4:
+        if len(path) < 3:
             return
-        return path[-4:]
+        return path[-3:]
