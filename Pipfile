@@ -4,12 +4,6 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-kivy = "*"
-docutils = "*"
-pygments = "*"
-cython = "*"
-pygame = "*"
-numpy = "*"
 scipy = "*"
 
 [dev-packages]

@@ -1,16 +1,18 @@
-from scipy.io import wavfile
 from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
+from kivy.core.window import Window
+from scipy.io import wavfile
 from kivy.properties import ObjectProperty, StringProperty, ListProperty, NumericProperty, BooleanProperty
 from kivy.uix.widget import Widget
 from kivy.uix.label import Label
 from kivy.graphics import Line, Color
-from kivy.core.window import Window
 from numpy import mean
+from typing import List
+from player import Player
 
 
 class Track:
-    def __init__(self, title, bpm, path, wav_data):
+    def __init__(self, title: str, bpm: str, path: str, wav_data: List[int]) -> None:
         self.title = title
         self.bpm = bpm
         self.path = path
@@ -20,7 +22,7 @@ class Track:
 class AudioVisualizer(Widget):
     wav_data = ListProperty([])
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         super(AudioVisualizer, self).__init__(**kwargs)
         self.abs_pos = [0, 0]
         self.abs_size = [0, 0]
@@ -32,20 +34,21 @@ class AudioVisualizer(Widget):
             self.color_deck1 = Color()
             self.line1 = Line(width=1)
 
-    def _update_pos(self, instance, value):
+    def _update_pos(self, instance, value) -> None:
+        print("type: {}".format(instance))
         self.abs_pos = instance.pos
         self.on_wav_data(instance, value)
 
-    def _update_size(self, instance, value):
+    def _update_size(self, instance, value) -> None:
         self.abs_size = instance.size
         self.on_wav_data(instance, value)
 
-    def update_track_pos(self):
+    def update_track_pos(self) -> None:
         index_pos = int(self.abs_size[0] * self.track_pos * 4)
         self.line0.points = self.line_points[:index_pos]
         self.line1.points = self.line_points[index_pos:]
 
-    def on_wav_data(self, instance, value):
+    def on_wav_data(self, instance, value) -> None:
         if self.width > 0:
             chunk_size = int(len(self.wav_data) / self.width)
         else:
@@ -69,13 +72,13 @@ class AudioVisualizer(Widget):
 class LabelWithBackground(Label):
     color_widget = ListProperty([0/256, 38/256, 53/256])
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         super(LabelWithBackground, self).__init__(**kwargs)
 
 
-class DJGUI(BoxLayout):
-    def __init__(self, **kwargs):
-        super(DJGUI, self).__init__(**kwargs)
+class GUI(BoxLayout):
+    def __init__(self, **kwargs) -> None:
+        super(GUI, self).__init__(**kwargs)
         self.ids.av_l.bind(size=self.ids.av_l._update_size, pos=self.ids.av_l._update_pos)
         self.ids.av_r.bind(size=self.ids.av_r._update_size, pos=self.ids.av_r._update_pos)
         self.ids.av_l.color_deck0.rgb = self.color_deck_l0
@@ -85,6 +88,8 @@ class DJGUI(BoxLayout):
 
         self._keyboard = Window.request_keyboard(self._keyboard_closed, self)
         self._keyboard.bind(on_key_down=self._on_keyboard_down)
+
+        self.player = Player(self)
 
 
     #----------------------------------Properties------------------------------------#
@@ -118,8 +123,10 @@ class DJGUI(BoxLayout):
     is_on_headphone0 = BooleanProperty(True)
     is_on_headphone1 = BooleanProperty(False)
 
-    def update_gui(self, track0=None, track1=None, position0=None, position1=None, time0=None, time1=None, pitch0=None,
-                   pitch1=None, is_playing0=None, is_playing1=None, is_on_headphone0=None, is_on_headphone1=None):
+    def update_gui(self, track0: Track = None, track1: Track = None, position0: float = None, position1: float = None,
+                   time0: str = None, time1: str = None, pitch0: str = None, pitch1: str = None,
+                   is_playing0: bool = None, is_playing1: bool = None, is_on_headphone0: bool = None,
+                   is_on_headphone1: bool = None) -> None:
         if track0 is not None:
             self.title0 = track0.title
             self.bpm0 = track0.bpm
@@ -151,11 +158,11 @@ class DJGUI(BoxLayout):
         if is_on_headphone1 is not None:
             self.is_on_headphone1 = is_on_headphone1
 
-    def _keyboard_closed(self):
+    def _keyboard_closed(self) -> None:
         self._keyboard.unbind(on_key_down=self._on_keyboard_down)
         self._keyboard = None
 
-    def _on_keyboard_down(self, keyboard, keycode, text, modifiers):
+    def _on_keyboard_down(self, keyboard, keycode, text, modifiers) -> bool:
         if keycode[1] == 'l':
             raw_data = wavfile.read('/home/monstagorilla/Music/Indigo (Alex Niggemann Remix).wav')[1]
             new_wav_data = []
@@ -194,22 +201,16 @@ class DJGUI(BoxLayout):
             self.position0 = 0.9
         return True
 
-    def on_position0(self, instance, value):
+    def on_position0(self, instance, value) -> None:
         self.ids.av_l.track_pos = value
         self.ids.av_l.update_track_pos()
 
-    def on_position1(self, instance, value):
+    def on_position1(self, instance, value) -> None:
         self.ids.av_r.track_pos = value
         self.ids.av_r.update_track_pos()
 
 
-class DJGUIApp(App):
-    def build(self):
-        return DJGUI()
+class GUIApp(App):
+    def build(self) -> GUI:
+        return GUI()
 
-
-if __name__ == '__main__':
-    app = DJGUIApp()
-    #Window.fullscreen = True
-    Window.size = [600, 300]
-    app.run()
