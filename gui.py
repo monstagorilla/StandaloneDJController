@@ -9,6 +9,7 @@ from kivy.graphics import Line, Color
 from numpy import mean
 from typing import List
 from player import Player
+from file_browser import FileBrowser
 
 
 class Track:
@@ -90,6 +91,10 @@ class GUI(BoxLayout):
         self._keyboard.bind(on_key_down=self._on_keyboard_down)
 
         self.player = Player(self)
+
+        self.file_browser = FileBrowser()
+        #self.temp_widget_tree = None
+        self.is_browsing = False
 
 
     #----------------------------------Properties------------------------------------#
@@ -199,6 +204,50 @@ class GUI(BoxLayout):
             self.position0 = 0.8
         elif keycode[1] == "9":
             self.position0 = 0.9
+        elif keycode[1] == "b":
+            if self.is_browsing:
+                self.stop_browsing()
+            else:
+                self.start_browsing()
+        elif self.is_browsing:
+            if keycode[1] == 'down':
+                count = len(self.file_browser._items)
+                has_selected = False
+                for i in range(0, count):
+                    if self.file_browser._items[i].is_selected:
+                        has_selected = True
+                        if i < count - 1:
+                            self.file_browser._items[i].is_selected = False
+                            self.file_browser._items[i + 1].is_selected = True
+                            self.file_browser.layout.ids.scrollview.scroll_to(self.file_browser._items[i + 1])
+                        break
+                if not has_selected:
+                    self.file_browser._items[0].is_selected = True
+            elif keycode[1] == 'up':
+                count = len(self.file_browser._items)
+                has_selected = False
+                for i in range(0, count):
+                    if self.file_browser._items[i].is_selected:
+                        has_selected = True
+                        if i > 0:
+                            self.file_browser._items[i].is_selected = False
+                            self.file_browser._items[i - 1].is_selected = True
+                            self.file_browser.layout.ids.scrollview.scroll_to(self.file_browser._items[i - 1])
+                        break
+                if not has_selected:
+                    self.file_browser._items[count - 1].is_selected = True
+
+            elif keycode[1] == 'right':
+                for x in self.file_browser._items:
+                    if x.is_selected:
+                        if self.file_browser.file_system.is_dir(x.path):
+                            self.file_browser.path = x.path
+                        else:
+                            print("load_track")
+            elif keycode[1] == 'left':
+                if self.file_browser.path != self.file_browser.rootpath:
+                    self.file_browser.path = "/".join(self.file_browser.path.split("/")[:-1])
+
         return True
 
     def on_position0(self, instance, value) -> None:
@@ -208,6 +257,17 @@ class GUI(BoxLayout):
     def on_position1(self, instance, value) -> None:
         self.ids.av_r.track_pos = value
         self.ids.av_r.update_track_pos()
+
+    def start_browsing(self) -> None:
+        self.temp_widget_tree = self.ids.play0
+        self.ids.layout0.remove_widget(self.ids.play0)
+        self.ids.layout0.add_widget(self.file_browser)
+        self.is_browsing = True
+
+    def stop_browsing(self) -> None:
+        self.ids.layout0.remove_widget(self.ids.layout0.children[0]) # TODO: dynamic implementation
+        self.ids.layout0.add_widget(self.temp_widget_tree)
+        self.is_browsing = False
 
 
 class GUIApp(App):
