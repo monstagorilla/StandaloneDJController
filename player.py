@@ -2,13 +2,15 @@
 
 from pyo import *
 import logging
+import multiprocessing
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
-class Player:
+class Player(multiprocessing.Process):
     def __init__(self) -> None:
+        super(Player, self).__init__()
         # Properties
         self.server = Server()
         self.server.setInOutDevice(8)
