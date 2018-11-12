@@ -2,7 +2,9 @@
 
 from pyo import *
 import logging
-logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(message)s')
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 class Player:
@@ -51,7 +53,7 @@ class Player:
         if self.table[channel] is not None:
             self.phasor[channel].freq = value * self.table[channel].getRate()
         else:
-            logging.INFO("no track loaded")
+            logger.info("no track loaded")
 
     def set_position(self, position: float, channel: int) -> None:  # TODO not using this function yet
         self.phasor[channel].reset()
@@ -61,7 +63,7 @@ class Player:
         if 0 <= self.phasor[channel].phase + diff <= 1:
             self.phasor[channel].phase += diff
         else:
-            logging.INFO("tried to jump out of bounds")
+            logger.info("tried to jump out of bounds")
 
     # TODO universal system of input values maybe between -1 and 1
     def set_eq(self, equalizer: EQ, value: float) -> None:
