@@ -1,8 +1,13 @@
 from player import Player
+from trackloader import TrackLoader
 import logging
 from kivy.app import App
 from kivy.uix.button import Button
 import sys
+
+import shutil
+import os
+
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -17,11 +22,14 @@ class TestKivy(Button):
         super(TestKivy, self).__init__()
         self.p = Player()
         self.p.start()
-        self.p.table[0].setSound(path="/home/monstagorilla/Music/Indigo (Alex Niggemann Remix).wav")
-        self.p.pointer[0].table = self.p.table[0]
-        self.p.phasor[0].reset()
-        self.p.phasor[0].freq = 0
-        self.p.start_stop(0)
+        self.test_trackloader()
+
+    def test_trackloader(self):
+        t = TrackLoader(self.p, "/home/monstagorilla/Music/Indigo (Alex Niggemann Remix).wav", 0, self.clear_temp_dir)
+        t.start()
+
+    def clear_temp_dir(self):
+        logger.info("clearing temp")
 
 
 class MyApp(App):

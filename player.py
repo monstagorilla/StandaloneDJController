@@ -5,6 +5,7 @@ import logging
 import multiprocessing
 import sys
 
+#Logging
 logger = logging.getLogger(__name__)  # TODO redundant code in logger setup
 logger.setLevel(logging.INFO)
 stream_handler = logging.StreamHandler(sys.stdout)
@@ -13,7 +14,7 @@ formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
 stream_handler.setFormatter(formatter)
 
 
-class Player(multiprocessing.Process):
+class Player(multiprocessing.Process):  # TODO shared memory?
     def __init__(self) -> None:
         super(Player, self).__init__()
         # Properties
