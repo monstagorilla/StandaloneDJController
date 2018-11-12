@@ -3,7 +3,7 @@ import time
 import threading
 
 
-class TrackLoader(threading.Thread):
+class TrackLoader(threading.Thread):  # TODO maybe use multiprocessing for speed improvement
     def __init__(self, player, path, channel, clear_temp_dir):
         threading.Thread.__init__(self)
         self.clear_temp_dir = clear_temp_dir

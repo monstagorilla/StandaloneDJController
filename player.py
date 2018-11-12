@@ -3,9 +3,14 @@
 from pyo import *
 import logging
 import multiprocessing
+import sys
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)  # TODO redundant code in logger setup
 logger.setLevel(logging.INFO)
+stream_handler = logging.StreamHandler(sys.stdout)
+logger.addHandler(stream_handler)
+formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
+stream_handler.setFormatter(formatter)
 
 
 class Player(multiprocessing.Process):
@@ -49,6 +54,7 @@ class Player(multiprocessing.Process):
         else:
             self.phasor[channel].freq = self.table[channel].getRate() * self.pitch[channel]
             self.isPlaying[channel] = True
+            logger.info("started playback")
 
     def set_pitch(self, value: int, channel: int) -> None:
         self.pitch[channel] = value

@@ -1,7 +1,15 @@
 from player import Player
-import time
+import logging
 from kivy.app import App
 from kivy.uix.button import Button
+import sys
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+stream_handler = logging.StreamHandler(sys.stdout)
+logger.addHandler(stream_handler)
+formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
+stream_handler.setFormatter(formatter)
 
 
 class TestKivy(Button):
@@ -13,11 +21,10 @@ class TestKivy(Button):
         self.p.pointer[0].table = self.p.table[0]
         self.p.phasor[0].reset()
         self.p.phasor[0].freq = 0
-        # self.player.refresh_snd[self.channel] = True
         self.p.start_stop(0)
 
-class MyApp(App):
 
+class MyApp(App):
     def build(self):
         return TestKivy()
 

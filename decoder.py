@@ -1,13 +1,13 @@
 import subprocess
 from trackloader import TrackLoader
 
-class Decoder():
-    def __init__(self, path_temp, player, clear_temp_dir):
+
+class Decoder:
+    def __init__(self, path_temp, player, clear_temp_dir):  # TODO really need clear_temp_dir
         self.clear_temp_dir = clear_temp_dir
         self.decode_is_running = False
         self.decode_obj = None
         self.path_temp = path_temp
-        #self.path_track = ""
         self.new_track = ["", 0, ""] #[path, chnl, codec]
         self.track_name = "" #is it really necessary
         self.player = player
