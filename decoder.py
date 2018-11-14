@@ -1,5 +1,15 @@
 import subprocess
+import logging
+import sys
 from trackloader import TrackLoader
+
+#Logging
+logger = logging.getLogger(__name__)  # TODO redundant code in logger setup
+logger.setLevel(logging.INFO)
+stream_handler = logging.StreamHandler(sys.stdout)
+logger.addHandler(stream_handler)
+formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
+stream_handler.setFormatter(formatter)
 
 
 class Decoder:
@@ -16,8 +26,6 @@ class Decoder:
         if self.decode_is_running is True and self.decode_obj.poll() is not None:  # TODO: return code check
             t = TrackLoader(self.player, self.path_temp + "/" + self.track_name[:-3] + "wav", self.new_track[1], self.clear_temp_dir)
             t.start()
-            #self.player.refresh_snd[self.new_track[1]] = True
-            # self.clear_temp_dir()
             self.decode_is_running = False
 
     def load_mp3(self, track_name, new_track):

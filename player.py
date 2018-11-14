@@ -5,8 +5,8 @@ import logging
 import multiprocessing
 import sys
 
-#Logging
-logger = logging.getLogger(__name__)  # TODO redundant code in logger setup
+# Logging
+logger = logging.getLogger(__name__)  # TODO redundant code in logger setup(every module)
 logger.setLevel(logging.INFO)
 stream_handler = logging.StreamHandler(sys.stdout)
 logger.addHandler(stream_handler)
@@ -14,9 +14,10 @@ formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
 stream_handler.setFormatter(formatter)
 
 
-class Player(multiprocessing.Process):  # TODO shared memory?
+class Player():  # TODO shared memory?
     def __init__(self) -> None:
         super(Player, self).__init__()
+        logger.info("init")
         # Properties
         self.server = Server()
         self.server.setInOutDevice(8)
@@ -30,7 +31,7 @@ class Player(multiprocessing.Process):  # TODO shared memory?
         # Audio Modules
         self.phasor = [Phasor(freq=0), Phasor(freq=0)]
         self.pointer = [Pointer(table=self.table[0], index=self.phasor[0], mul=0.3),
-                        Pointer(table=self.table[1], index=self.phasor[1], mul=0.3)]  # TODO check # mul != 1n?
+                        Pointer(table=self.table[1], index=self.phasor[1], mul=0.3)]  # TODO why mul != 1?
         self.pitch = [1, 1]
         self.lowEq = [EQ(input=self.pointer[0], boost=1, freq=125, q=1, type=1),  # TODO good choice for frequencies?
                       EQ(input=self.pointer[1], boost=1, freq=125, q=1, type=1)]

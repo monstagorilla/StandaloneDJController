@@ -17,7 +17,7 @@ Builder.load_string('''
 
 
 class FileBrowser(FileChooserListView):
-    root_path = StringProperty(os.path.expanduser("~/Music"))
+    root_path = StringProperty(os.path.expanduser("~/Music"))  # TODO manage with usb handler
 
     def __init__(self):
         super(FileChooserListView, self).__init__()

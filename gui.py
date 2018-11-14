@@ -12,6 +12,18 @@ from player import Player
 from file_browser import FileBrowser
 from decoder import Decoder
 from kivy.clock import Clock
+import logging
+from trackloader import TrackLoader
+import sys
+from pyo import *
+
+#Logging
+logger = logging.getLogger(__name__)  # TODO redundant code in logger setup
+logger.setLevel(logging.INFO)
+stream_handler = logging.StreamHandler(sys.stdout)
+logger.addHandler(stream_handler)
+formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
+stream_handler.setFormatter(formatter)
 
 
 class Track:
@@ -38,44 +50,44 @@ class AudioVisualizer(Widget):
             self.line1 = Line(width=1)
 
     def _update_pos(self, instance, value) -> None:
-        print("type: {}".format(instance))
         self.abs_pos = instance.pos
-        self.on_wav_data(instance, value)
+        self.on_wav_data()
 
     def _update_size(self, instance, value) -> None:
         self.abs_size = instance.size
-        self.on_wav_data(instance, value)
+        self.on_wav_data()
 
     def update_track_pos(self) -> None:
-        index_pos = int(self.abs_size[0] * self.track_pos * 4)
-        self.line0.points = self.line_points[:index_pos]
+        index_pos = int(self.abs_size[0] * self.track_pos * 4)  # multiply by 4 because of chunks(len=4) in line_points
+        self.line0.points = self.line_points[:index_pos]  # TODO maybe not pixel perfect
         self.line1.points = self.line_points[index_pos:]
 
-    def on_wav_data(self, instance, value) -> None:
+    def on_wav_data(self) -> None:  # TODO problem with missing instance/value parameter?
         if self.width > 0:
             chunk_size = int(len(self.wav_data) / self.width)
         else:
-            print("in on_wav_data: width = 0")
+            logger.warning("width = 0 -> cannot divide")
             return
         mean_data = []
         for x in range(0, int(self.width)):
             try:
                 mean_data.append(mean(self.wav_data[x * chunk_size: (x + 3) * chunk_size]))
-            except Exception as Argument:
-                print("Error in on_wav_data: " + str(Argument))
+            except Exception as e:
+                logger.warning(e)
 
-        scaling_factor = self.height/max(mean_data)/1.5
+        scaling_factor = self.height/max(mean_data)/1.5  # 1.5 is a hardcoded factor
         self.line_points = []
         for x in range(0, int(self.width)):
             self.line_points.extend([self.abs_pos[0] + x, self.abs_pos[1] - mean_data[x] * scaling_factor + self.abs_size[1] / 2,
                                      self.abs_pos[0] + x, self.abs_pos[1] + mean_data[x] * scaling_factor + self.abs_size[1] / 2])
-        self.update_track_pos()
+        self.update_track_pos()  # TODO maybe not necessary
+
 
 
 class LabelWithBackground(Label):
     color_widget = ListProperty([0/256, 38/256, 53/256])
 
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, **kwargs) -> None:  # TODO not needed?
         super(LabelWithBackground, self).__init__(**kwargs)
 
 
@@ -91,12 +103,13 @@ class GUI(BoxLayout):
 
         self._keyboard = Window.request_keyboard(self._keyboard_closed, self)
         self._keyboard.bind(on_key_down=self._on_keyboard_down)
+        print("lol")
 
-        self.player = Player(self)
-
+        self.player = Player()
+        #self.player.start()
         self.file_browser = FileBrowser()
         self.decoder = Decoder(self.file_browser.path_temp, self.player, self.file_browser.clear_temp_dir)
-        #self.temp_widget_tree = None
+        self.temp_widget_tree = None
         self.is_browsing = False
 
         Clock.schedule_interval(self.decoder.update_decoder, 0.1)
@@ -119,7 +132,6 @@ class GUI(BoxLayout):
     bpm1 = StringProperty("70")
     path0 = StringProperty("path0")  # necessary?
     path1 = StringProperty("path1")
-
 
     # Current State
     time0 = StringProperty("1:45/3:05")
@@ -191,6 +203,8 @@ class GUI(BoxLayout):
             for x in raw_data[::50]:
                 new_wav_data.append(abs(x[0]))
             self.update_gui(track0=Track("scuuuuurrrr", "200", "pathlol", new_wav_data))
+
+        # for testing purposes
         elif keycode[1] == "1":
             self.position0 = 0.1
         elif keycode[1] == "2":
@@ -255,8 +269,9 @@ class GUI(BoxLayout):
                                 self.decoder.load_mp3(track_name, new_track)
                                 print("new track: " + str(new_track))
                             elif self.get_codec(self.path + "/" + track_name) == ".wav":
-                                pass
-                                #t = TrackLoader(self.player, self.path + "/" + track_name, channel, self.clear_temp_dir)
+                                #pass
+                                t = TrackLoader(self.player, self.path + "/" + track_name, 0, self.clear_temp_dir)
+                                t.start()
                                 #self.player.snd_view = True
 
             elif keycode[1] == 'left':
@@ -286,6 +301,6 @@ class GUI(BoxLayout):
 
 
 class GUIApp(App):
-    def build(self) -> GUI:
+    def build(self):
         return GUI()
 

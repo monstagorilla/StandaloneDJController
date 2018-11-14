@@ -21,7 +21,7 @@ class TestKivy(Button):
     def __init__(self):
         super(TestKivy, self).__init__()
         self.p = Player()
-        self.p.start()
+       # self.p.start()
         self.test_trackloader()
 
     def test_trackloader(self):
