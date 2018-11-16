@@ -14,13 +14,16 @@ formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
 stream_handler.setFormatter(formatter)
 
 
-class TrackLoader(threading.Thread):  # TODO maybe use multiprocessing for speed improvement
-    def __init__(self, player, path, channel, clear_temp_dir):
+class TrackLoader(threading.Thread):  # TODO maybe use multiprocessing for speed improvement, join()
+    def __init__(self, player, path, channel, clear_temp_dir, update_gui):
         threading.Thread.__init__(self)
         self.clear_temp_dir = clear_temp_dir
-        self.player = player
+        self.update_gui = update_gui
         self.path = path
         self.channel = channel
+
+        self.decoder = Decoder()
+        # pipe
 
     def run(self):
         try:
@@ -61,6 +64,6 @@ class TrackLoader(threading.Thread):  # TODO maybe use multiprocessing for speed
         self.player.pointer[self.channel].table = self.player.table[self.channel]
         self.player.phasor[self.channel].reset()
         self.player.phasor[self.channel].freq = 0
-        self.player.refresh_snd[self.channel] = True
+        #self.player.refresh_snd[self.channel] = True
         self.player.start_stop(0)  # TODO manage start_stop external with wait
-        self.clear_temp_dir()  # TODO maybe lean somewhere else
+        self.clear_temp_dir()  # TODO maybe clean somewhere else

@@ -4,7 +4,8 @@ from pyo import *
 import logging
 import multiprocessing
 import sys
-
+from kivy.clock import Clock
+from multiprocessing.connection import Connection
 # Logging
 logger = logging.getLogger(__name__)  # TODO redundant code in logger setup(every module)
 logger.setLevel(logging.INFO)
@@ -14,10 +15,11 @@ formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
 stream_handler.setFormatter(formatter)
 
 
-class Player():  # TODO shared memory?
-    def __init__(self) -> None:
+class Player:  # TODO shared memory?
+    def __init__(self, tx: Connection) -> None:
         super(Player, self).__init__()
-        logger.info("init")
+        self.tx = tx
+
         # Properties
         self.server = Server()
         self.server.setInOutDevice(8)
@@ -25,7 +27,8 @@ class Player():  # TODO shared memory?
         self.server.start()
         self.table = [SndTable(), SndTable()]
         self.title = ["", ""]
-        self.isPlaying = [False, False]
+        self.is_playing = [False, False]
+        self.is_on_headphone = [False, False]
         self.refresh_snd = [False, False]
 
         # Audio Modules
@@ -49,13 +52,21 @@ class Player():  # TODO shared memory?
         self.mainVolume.setAmp(0, 0, 1)
         self.mainVolume.out(1)
 
+        Clock.schedule_interval(self.handler_send, 0.1)
+
+    def handler_send(self, dt):
+        tx_data = [self.phasor[0].phase, self.phasor[1].phase, self.pos_to_str(0), self.pos_to_str(1),
+                   self.pitch_to_str(0), self.pitch_to_str(1), self.is_playing[0], self.is_playing[1],
+                   self.is_on_headphone[0], self.is_on_headphone[1]]
+        self.tx.send(tx_data)
+
     def start_stop(self, channel: int) -> None:
-        if self.isPlaying[channel]:
+        if self.is_playing[channel]:
             self.phasor[channel].freq = 0
-            self.isPlaying[channel] = False
+            self.is_playing[channel] = False
         else:
             self.phasor[channel].freq = self.table[channel].getRate() * self.pitch[channel]
-            self.isPlaying[channel] = True
+            self.is_playing[channel] = True
             logger.info("started playback")
 
     def set_pitch(self, value: int, channel: int) -> None:
@@ -80,3 +91,14 @@ class Player():  # TODO shared memory?
         if value > 0:
             value /= 10  # weaker increasing than lowering
         equalizer.boost = value * 40  # max lowering 40dB
+
+    def pos_to_str(self, channel: int):
+        sec, dur = (self.phasor[channel].phase * self.table[channel].getDur(), self.table[channel].getDur())
+        return "{}:{}/{}:{}".format(str(int(sec/60)), str(sec%60).zfill(2), str(int(dur/60)), str(dur%60).zfill(2))
+
+    def pitch_to_str(self, channel: int):
+        return "{}{}%".format(("+" if self.pitch[channel] else ""), self.pitch[channel] * 100)
+
+
+
+

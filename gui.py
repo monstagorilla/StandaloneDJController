@@ -16,8 +16,9 @@ import logging
 from trackloader import TrackLoader
 import sys
 from pyo import *
+from multiprocessing import Pipe
 
-#Logging
+# Logging
 logger = logging.getLogger(__name__)  # TODO redundant code in logger setup
 logger.setLevel(logging.INFO)
 stream_handler = logging.StreamHandler(sys.stdout)
@@ -83,7 +84,6 @@ class AudioVisualizer(Widget):
         self.update_track_pos()  # TODO maybe not necessary
 
 
-
 class LabelWithBackground(Label):
     color_widget = ListProperty([0/256, 38/256, 53/256])
 
@@ -103,16 +103,22 @@ class GUI(BoxLayout):
 
         self._keyboard = Window.request_keyboard(self._keyboard_closed, self)
         self._keyboard.bind(on_key_down=self._on_keyboard_down)
-        print("lol")
 
-        self.player = Player()
+        self.rx_player, tx_player = Pipe(duplex=False)
+        self.rx_track_loader, self.tx_track_loader = Pipe(duplex=False)
+
+        self.player = Player(tx_player)
         #self.player.start()
-        self.file_browser = FileBrowser()
-        self.decoder = Decoder(self.file_browser.path_temp, self.player, self.file_browser.clear_temp_dir)
-        self.temp_widget_tree = None
-        self.is_browsing = False
 
-        Clock.schedule_interval(self.decoder.update_decoder, 0.1)
+        self.file_browser = FileBrowser()
+
+        self.cur_browser = 0
+        self.temp_widget_tree = [None, None]
+        self.is_browsing = [False, False]
+
+        Clock.schedule_interval(self.decoder.update_decoder, 0.1)  # TODO choose good interval time
+        Clock.schedule_interval(self.handler_player, 0.1)  # TODO choose good interval time
+
 
 
     #----------------------------------Properties------------------------------------#
@@ -125,7 +131,8 @@ class GUI(BoxLayout):
     color_deck_r1 = ListProperty([100/256, 60/256, 15/256])
     color_font = ListProperty([239/256, 231/256, 190/256])
 
-    # Track Infos
+    # TODO correct default values
+    # Track Info
     title0 = StringProperty("left")
     title1 = StringProperty("right")
     bpm0 = StringProperty("128")
@@ -144,6 +151,12 @@ class GUI(BoxLayout):
     is_playing1 = BooleanProperty(False)
     is_on_headphone0 = BooleanProperty(True)
     is_on_headphone1 = BooleanProperty(False)
+
+    def handler_player(self, dt):
+        if self.rx_player.poll():
+            d = self.rx_player.recv()
+            self.update_gui(position0=d[0], position1=d[1], time0=d[2], time1=d[3], pitch0=d[4], pitch1=d[5],
+                            is_playing0=d[6], is_playing1=d[7], is_on_headphone0=d[8], is_on_headphone1=d[9])
 
     def update_gui(self, track0: Track = None, track1: Track = None, position0: float = None, position1: float = None,
                    time0: str = None, time1: str = None, pitch0: str = None, pitch1: str = None,
@@ -185,50 +198,18 @@ class GUI(BoxLayout):
         self._keyboard = None
 
     def _on_keyboard_down(self, keyboard, keycode, text, modifiers) -> bool:
-        if keycode[1] == 'l':
-            raw_data = wavfile.read('/home/monstagorilla/Music/Indigo (Alex Niggemann Remix).wav')[1]
-            new_wav_data = []
-            for x in raw_data[::50]:
-                new_wav_data.append(abs(x[0]))
-            self.ids.av_l.wav_data = new_wav_data
-        elif keycode[1] == 'r':
-            raw_data = wavfile.read('/home/monstagorilla/Music/Indigo (Alex Niggemann Remix).wav')[1]
-            new_wav_data = []
-            for x in raw_data[::50]:
-                new_wav_data.append(abs(x[0]))
-            self.ids.av_r.wav_data = new_wav_data
-        elif keycode[1] == "q":
-            raw_data = wavfile.read('/home/monstagorilla/Music/temp/Super Trouper - Mamma Mia.wav')[1]
-            new_wav_data = []
-            for x in raw_data[::50]:
-                new_wav_data.append(abs(x[0]))
-            self.update_gui(track0=Track("scuuuuurrrr", "200", "pathlol", new_wav_data))
-
-        # for testing purposes
-        elif keycode[1] == "1":
-            self.position0 = 0.1
-        elif keycode[1] == "2":
-            self.position0 = 0.2
-        elif keycode[1] == "3":
-            self.position0 = 0.3
-        elif keycode[1] == "4":
-            self.position0 = 0.4
-        elif keycode[1] == "5":
-            self.position0 = 0.5
-        elif keycode[1] == "6":
-            self.position0 = 0.6
-        elif keycode[1] == "7":
-            self.position0 = 0.7
-        elif keycode[1] == "8":
-            self.position0 = 0.8
-        elif keycode[1] == "9":
-            self.position0 = 0.9
-        elif keycode[1] == "b":
-            if self.is_browsing:
-                self.stop_browsing()
+        if keycode[1] == "b":
+            if self.is_browsing[0]:
+                self.stop_browsing(0)
             else:
-                self.start_browsing()
-        elif self.is_browsing:
+                self.start_browsing(0)
+        if keycode[1] == "n":
+            if self.is_browsing[1]:
+                self.stop_browsing(1)
+            else:
+                self.start_browsing(1)
+
+        elif self.is_browsing[self.cur_browser]:
             if keycode[1] == 'down':
                 count = len(self.file_browser._items)
                 has_selected = False
@@ -262,16 +243,16 @@ class GUI(BoxLayout):
                         if self.file_browser.file_system.is_dir(x.path):
                             self.file_browser.path = x.path
                         else:
-                            print("load_track")
+                            logger.info("load_track")
+                            track_name = "/".join(x.path.split("/")[-1:])
                             if self.file_browser.get_codec(x.path) == "mp3" and not self.decoder.decode_is_running:
-                                new_track = [x.path, 0, "mp3"]
-                                track_name = "/".join(x.path.split("/")[-1:])
+                                new_track = [x.path, self.cur_browser, "mp3"]
                                 self.decoder.load_mp3(track_name, new_track)
-                                print("new track: " + str(new_track))
-                            elif self.get_codec(self.path + "/" + track_name) == ".wav":
+                                logger.info("new track: " + str(new_track))
+                            #elif self.file_browser.get_codec(self.path + "/" + track_name) == "wav":
                                 #pass
-                                t = TrackLoader(self.player, self.path + "/" + track_name, 0, self.clear_temp_dir)
-                                t.start()
+                            #    t = TrackLoader(self.player, self.path + "/" + track_name, self.cur_browser, self.clear_temp_dir)
+                            #    t.start()
                                 #self.player.snd_view = True
 
             elif keycode[1] == 'left':
@@ -288,16 +269,46 @@ class GUI(BoxLayout):
         self.ids.av_r.track_pos = value
         self.ids.av_r.update_track_pos()
 
-    def start_browsing(self) -> None:
-        self.temp_widget_tree = self.ids.play0
-        self.ids.layout0.remove_widget(self.ids.play0)
-        self.ids.layout0.add_widget(self.file_browser)
-        self.is_browsing = True
+    def start_browsing(self, channel: int) -> None:
+        if self.is_browsing[channel]:
+            logger.info("already browsing.")
+            return
+        # TODO better named identifier
+        if channel == 0:
+            layout = self.ids.layout0
+            label = self.ids.play0
+        elif channel == 1:
+            layout = self.ids.layout1
+            label = self.ids.play1
+        else:
+            logger.warning("invalid channel")
+            return
 
-    def stop_browsing(self) -> None:
-        self.ids.layout0.remove_widget(self.ids.layout0.children[0]) # TODO: dynamic implementation
-        self.ids.layout0.add_widget(self.temp_widget_tree)
-        self.is_browsing = False
+        if self.is_browsing[(channel + 1) % 2]:
+            self.stop_browsing((channel + 1) % 2)
+
+        self.temp_widget_tree[channel] = label
+        layout.remove_widget(label)
+        layout.add_widget(self.file_browser)
+        self.is_browsing[channel] = True
+        self.cur_browser = channel
+
+    def stop_browsing(self, channel: int) -> None:
+        if not self.is_browsing[channel]:
+            logger.info("not browsing at the moment")
+            return
+
+        if channel == 0:
+            layout = self.ids.layout0
+        elif channel == 1:
+            layout = self.ids.layout1
+        else:
+            logger.warning("invalid channel")
+            return
+
+        layout.remove_widget(layout.children[0])  # TODO: dynamic implementation with id
+        layout.add_widget(self.temp_widget_tree[channel])
+        self.is_browsing[channel] = False
 
 
 class GUIApp(App):
