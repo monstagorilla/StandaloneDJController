@@ -24,7 +24,7 @@ class FileBrowser(FileChooserListView):
         super(FileChooserListView, self).__init__()
         self.usb_manager = USBManager()
 
-        Clock.schedule_interval(self.update_mountpoint, 0.1)  # TODO choose good interval time
+        Clock.schedule_interval(self.update_mount_point, 0.1)  # TODO choose good interval time
 
     def update_mount_point(self, dt):
         result = self.usb_manager.get_mount_point()

@@ -3,6 +3,7 @@
 import subprocess
 import logging
 import sys
+from kivy.clock import Clock
 
 # Logging
 logger = logging.getLogger(__name__)  # TODO redundant code in logger setup
@@ -22,6 +23,9 @@ class USBManager:
         self.system_partition_name = "sda"  # has to be hardcoded
         self.update_process_obj = None
         self.is_updating = False
+
+        Clock.schedule_interval(self.update_state, 1)
+
 
     def analyze_partitions(self):
         for line in self.partition_info.splitlines():

@@ -4,6 +4,17 @@ from kivy.uix.widget import Widget
 from kivy.uix.label import Label
 from kivy.graphics import Line, Color
 from numpy import mean
+import logging
+import sys
+
+# Logging
+logger = logging.getLogger(__name__)  # TODO redundant code in logger setup
+logger.setLevel(logging.INFO)
+stream_handler = logging.StreamHandler(sys.stdout)
+logger.addHandler(stream_handler)
+formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
+stream_handler.setFormatter(formatter)
+
 
 class Track:
     def __init__(self, title, bpm, path, wav_data):
@@ -30,29 +41,29 @@ class AudioVisualizer(Widget):
 
     def _update_pos(self, instance, value):
         self.abs_pos = instance.pos
-        self.on_wav_data(instance, value)
+        self.on_wav_data(None, None)
 
     def _update_size(self, instance, value):
         self.abs_size = instance.size
-        self.on_wav_data(instance, value)
+        self.on_wav_data(None, None)
 
     def update_track_pos(self):
         index_pos = int(self.abs_size[0] * self.track_pos * 4)
         self.line0.points = self.line_points[:index_pos]
         self.line1.points = self.line_points[index_pos:]
 
-    def on_wav_data(self, instance, value):
+    def on_wav_data(self, instance, value):  # TODO realy need instance, value?
         if self.width > 0:
             chunk_size = int(len(self.wav_data) / self.width)
         else:
-            print("in on_wav_data: width = 0")
+            logger.warning("width = 0")
             return
         mean_data = []
         for x in range(0, int(self.width)):
             try:
                 mean_data.append(mean(self.wav_data[x * chunk_size: (x + 3) * chunk_size]))
-            except Exception as Argument:
-                print("Error in on_wav_data: " + str(Argument))
+            except Exception as e:
+                logger.error(e)
 
         scaling_factor = self.height/max(mean_data)/1.5
         self.line_points = []

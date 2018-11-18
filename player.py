@@ -6,6 +6,10 @@ import multiprocessing
 import sys
 from kivy.clock import Clock
 from multiprocessing.connection import Connection
+import track_loading
+import concurrent.futures
+import numpy
+
 # Logging
 logger = logging.getLogger(__name__)  # TODO redundant code in logger setup(every module)
 logger.setLevel(logging.INFO)
@@ -15,11 +19,11 @@ formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
 stream_handler.setFormatter(formatter)
 
 
-class Player:  # TODO shared memory?
-    def __init__(self, tx: Connection) -> None:
+class Player(multiprocessing.Process):  # TODO shared memory?
+    def __init__(self, tx_gui: Connection, rx_loading: Connection) -> None:
         super(Player, self).__init__()
-        self.tx = tx
-
+        self.tx_gui = tx_gui
+        self.rx_loading = rx_loading
         # Properties
         self.server = Server()
         self.server.setInOutDevice(8)
@@ -52,13 +56,37 @@ class Player:  # TODO shared memory?
         self.mainVolume.setAmp(0, 0, 1)
         self.mainVolume.out(1)
 
-        Clock.schedule_interval(self.handler_send, 0.1)
+        Clock.schedule_interval(self.refresh_gui, 0.1)
+        Clock.schedule_interval(self.handler_loading, 0.1)
 
-    def handler_send(self, dt):
+    def refresh_gui(self, dt):
         tx_data = [self.phasor[0].phase, self.phasor[1].phase, self.pos_to_str(0), self.pos_to_str(1),
                    self.pitch_to_str(0), self.pitch_to_str(1), self.is_playing[0], self.is_playing[1],
                    self.is_on_headphone[0], self.is_on_headphone[1]]
-        self.tx.send(tx_data)
+        self.tx_gui.send(tx_data)
+
+    def handler_loading(self, dt):
+        if self.rx_loading.poll():
+            with concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor:
+                data = self.rx_loading.recv()
+                future = executor.submit(track_loading.load, data[0], data[1])
+                future.add_done_callback(self.set_new_track)
+
+    def set_new_track(self, future):
+        result = future.result()
+        new_table = result[0]
+        path = result[1]
+        channel = result[2]
+        if new_table is None:
+            logger.error("Loading Failed")
+            return
+        table_data = numpy.asarray(self.table[channel].getBuffer())
+        table_data[:] = new_table[:44100]
+        self.title[channel] = str(path.split("/")[-1:])[:-3]
+        self.pointer[channel].table = self.table[channel]
+        self.phasor[channel].reset()
+        self.phasor[channel].freq = 0
+        self.start_stop(0)  # TODO manage start_stop external with wait
 
     def start_stop(self, channel: int) -> None:
         if self.is_playing[channel]:

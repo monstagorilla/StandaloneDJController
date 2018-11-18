@@ -10,10 +10,8 @@ from numpy import mean
 from typing import List
 from player import Player
 from file_browser import FileBrowser
-from decoder import Decoder
 from kivy.clock import Clock
 import logging
-from trackloader import TrackLoader
 import sys
 from pyo import *
 from multiprocessing import Pipe
@@ -105,10 +103,10 @@ class GUI(BoxLayout):
         self._keyboard.bind(on_key_down=self._on_keyboard_down)
 
         self.rx_player, tx_player = Pipe(duplex=False)
-        self.rx_track_loader, self.tx_track_loader = Pipe(duplex=False)
+        rx_loading, self.tx_loading = Pipe(duplex=False)
 
-        self.player = Player(tx_player)
-        #self.player.start()
+        self.player = Player(tx_player, rx_loading)
+        self.player.start()
 
         self.file_browser = FileBrowser()
 
@@ -116,8 +114,8 @@ class GUI(BoxLayout):
         self.temp_widget_tree = [None, None]
         self.is_browsing = [False, False]
 
-        Clock.schedule_interval(self.decoder.update_decoder, 0.1)  # TODO choose good interval time
         Clock.schedule_interval(self.handler_player, 0.1)  # TODO choose good interval time
+
 
 
 
@@ -244,17 +242,8 @@ class GUI(BoxLayout):
                             self.file_browser.path = x.path
                         else:
                             logger.info("load_track")
-                            track_name = "/".join(x.path.split("/")[-1:])
-                            if self.file_browser.get_codec(x.path) == "mp3" and not self.decoder.decode_is_running:
-                                new_track = [x.path, self.cur_browser, "mp3"]
-                                self.decoder.load_mp3(track_name, new_track)
-                                logger.info("new track: " + str(new_track))
-                            #elif self.file_browser.get_codec(self.path + "/" + track_name) == "wav":
-                                #pass
-                            #    t = TrackLoader(self.player, self.path + "/" + track_name, self.cur_browser, self.clear_temp_dir)
-                            #    t.start()
-                                #self.player.snd_view = True
-
+                            self.tx_loading.send([x.path, self.cur_browser])
+                            break
             elif keycode[1] == 'left':
                 if self.file_browser.path != self.file_browser.rootpath:
                     self.file_browser.path = "/".join(self.file_browser.path.split("/")[:-1])
