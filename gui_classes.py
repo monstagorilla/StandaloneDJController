@@ -17,7 +17,7 @@ stream_handler.setFormatter(formatter)
 
 
 class Track:
-    def __init__(self, title, bpm, path, wav_data):
+    def __init__(self, title="", bpm=0, path="", wav_data=None):
         self.title = title
         self.bpm = bpm
         self.path = path

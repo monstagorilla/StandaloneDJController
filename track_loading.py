@@ -5,6 +5,7 @@ import subprocess
 import os
 import numpy
 import shutil
+import ffmpeg
 from scipy.io import wavfile
 
 # Logging
@@ -15,7 +16,7 @@ logger.addHandler(stream_handler)
 formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
 stream_handler.setFormatter(formatter)
 
-
+"""
 def decoding_mp3(path: str, path_temp: str) -> str:
     name = "/".join(path.split("/")[-1:])
 
@@ -27,15 +28,18 @@ def decoding_mp3(path: str, path_temp: str) -> str:
 
     decode_obj = subprocess.Popen(["ffmpeg", "-i", path, path_temp + "/" + name[:-3] + "wav"])
     count = 0
-    while decode_obj.poll() is None:
+    while True:
+        if decode_obj.poll() is not None:
+            break
         time.sleep(0.1)
         if count > 1000:
             logger.error("timeout")
             return ""
         count += 1
     return path_temp + "/" + name[:-3] + "wav"
+"""
 
-
+"""
 def load(path: str, channel: int):
     if len(path) < 3:
         logger.error("path too short")
@@ -47,29 +51,40 @@ def load(path: str, channel: int):
         path_new = decoding_mp3(path, path_temp)
         if path_new != "":
             # TODO dont use sample rate?
-            raw_data = wavfile.read(path_new)[1]
+            raw_data = wavfile.read(path_new)
             norm_data = []
-            max_value = numpy.max(raw_data, axis=0)
+            max_value = numpy.mean(numpy.max(raw_data, axis=0))
             for x in raw_data:
-                norm_data.append(x / max_value)
-
-            #table = SndTable(path=path_new)
+                norm_data.extend([x[0] / max_value, x[1] / max_value])
             clear_temp_dir(path_temp)
-            return [numpy.asarray(norm_data), path, channel]  # TODO better error handling
+            return [numpy.asarray(norm_data).tolist(), path, channel]  # TODO better error handling
     elif codec == "wav":
-        #return [SndTable(path=path), path, channel]
         raw_data = wavfile.read(path)[1]
         norm_data = []
         max_value = numpy.max(raw_data, axis=0)
-        #max_value = raw_data.max
         for x in raw_data:
-            norm_data.append(x/max_value)
-        return [numpy.asarray(norm_data), path, channel]  # TODO better error handling
+            norm_data.append(x / max_value)
+        return [numpy.asarray(norm_data).tolist(), path, channel]  # TODO better error handling
+"""
+
+
+def load_track(path: str, channel: int):
+    out, _ = (ffmpeg.input(path).output('pipe:', format='wav', ac=2).run(capture_stdout=True))
+    raw_data = numpy.frombuffer(out, numpy.int16)
+    norm_data = raw_data / raw_data.max(axis=0)
+    if len(norm_data) % 2 == 0:
+        result_data = [(norm_data[::2]).tolist(), (norm_data[1::2]).tolist()]
+    else:
+        result_data = [(norm_data[::2]).tolist(), (norm_data[1::2]).tolist()]  # TODO different channel size
+
+    return [result_data, path, channel]
 
 
 def get_list_from_wav(path: str):
     return
 
+
+"""
 def clear_temp_dir(path_temp: str) -> None:
     for the_file in os.listdir(path_temp):
         file_path = os.path.join(path_temp, the_file)
@@ -80,3 +95,4 @@ def clear_temp_dir(path_temp: str) -> None:
                 shutil.rmtree(file_path)
         except Exception as e:
             logger.error(e)
+"""

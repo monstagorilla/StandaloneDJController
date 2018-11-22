@@ -102,10 +102,11 @@ class GUI(BoxLayout):
         self._keyboard = Window.request_keyboard(self._keyboard_closed, self)
         self._keyboard.bind(on_key_down=self._on_keyboard_down)
 
-        self.rx_player, tx_player = Pipe(duplex=False)
-        rx_loading, self.tx_loading = Pipe(duplex=False)
+        self.rx_player, tx_player = Pipe(duplex=False)  # pipe to update gui regularly
+        rx_loading, self.tx_loading = Pipe(duplex=False)  # pipe to start track loading
+        self.rx_new_track, tx_new_track = Pipe(duplex=False)  # pipe to update gui once when track loaded
 
-        self.player = Player(tx_player, rx_loading)
+        self.player = Player(tx_player, tx_new_track, rx_loading)
         self.player.start()
 
         self.file_browser = FileBrowser()
@@ -115,9 +116,6 @@ class GUI(BoxLayout):
         self.is_browsing = [False, False]
 
         Clock.schedule_interval(self.handler_player, 0.1)  # TODO choose good interval time
-
-
-
 
     #----------------------------------Properties------------------------------------#
     # GUI globals

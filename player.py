@@ -9,6 +9,7 @@ from multiprocessing.connection import Connection
 import track_loading
 import concurrent.futures
 import numpy
+from gui_classes import Track
 
 # Logging
 logger = logging.getLogger(__name__)  # TODO redundant code in logger setup(every module)
@@ -20,17 +21,19 @@ stream_handler.setFormatter(formatter)
 
 
 class Player(multiprocessing.Process):  # TODO shared memory?
-    def __init__(self, tx_gui: Connection, rx_loading: Connection) -> None:
+    def __init__(self, tx_gui: Connection, tx_new_track: Connection, rx_loading: Connection) -> None:
         super(Player, self).__init__()
         self.tx_gui = tx_gui
+        self.tx_new_track = tx_new_track
         self.rx_loading = rx_loading
+
         # Properties
         self.server = Server()
         self.server.setInOutDevice(8)
         self.server.boot()
         self.server.start()
         self.table = [SndTable(), SndTable()]
-        self.title = ["", ""]
+        self.track = [Track(), Track()]
         self.is_playing = [False, False]
         self.is_on_headphone = [False, False]
         self.refresh_snd = [False, False]
@@ -69,7 +72,7 @@ class Player(multiprocessing.Process):  # TODO shared memory?
         if self.rx_loading.poll():
             with concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor:
                 data = self.rx_loading.recv()
-                future = executor.submit(track_loading.load, data[0], data[1])
+                future = executor.submit(track_loading.load_track, data[0], data[1])
                 future.add_done_callback(self.set_new_track)
 
     def set_new_track(self, future):
@@ -80,13 +83,15 @@ class Player(multiprocessing.Process):  # TODO shared memory?
         if new_table is None:
             logger.error("Loading Failed")
             return
-        table_data = numpy.asarray(self.table[channel].getBuffer())
-        table_data[:] = new_table[:44100]
-        self.title[channel] = str(path.split("/")[-1:])[:-3]
+        self.table[channel] = NewTable(length=len(new_table[0]) / 44100, init=new_table[0], chnls=1)
+        self.track[channel] = Track(title=str(path.split("/")[-1:])[:-3])
         self.pointer[channel].table = self.table[channel]
         self.phasor[channel].reset()
         self.phasor[channel].freq = 0
+        #self.tx_new_track.send([self.title[channel], self.])
         self.start_stop(0)  # TODO manage start_stop external with wait
+
+    #def get_bpm  # TODO impl fn get_bpm
 
     def start_stop(self, channel: int) -> None:
         if self.is_playing[channel]:
@@ -121,11 +126,12 @@ class Player(multiprocessing.Process):  # TODO shared memory?
         equalizer.boost = value * 40  # max lowering 40dB
 
     def pos_to_str(self, channel: int):
+        #pass
         sec, dur = (self.phasor[channel].phase * self.table[channel].getDur(), self.table[channel].getDur())
         return "{}:{}/{}:{}".format(str(int(sec/60)), str(sec%60).zfill(2), str(int(dur/60)), str(dur%60).zfill(2))
 
     def pitch_to_str(self, channel: int):
-        return "{}{}%".format(("+" if self.pitch[channel] else ""), self.pitch[channel] * 100)
+        return "{}{}%".format(("+" if self.pitch[channel] >= 1 else ""), (self.pitch[channel] - 1) * 100)
 
 
 
