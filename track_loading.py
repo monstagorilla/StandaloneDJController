@@ -68,16 +68,28 @@ def load(path: str, channel: int):
 """
 
 
-def load_track(path: str, channel: int):
-    out, _ = (ffmpeg.input(path).output('pipe:', format='wav', ac=2).run(capture_stdout=True))
+def load_track(path: str, channel: int, visual_width: int):
+    out, _ = (ffmpeg.input(path).output('pipe:', format='wav', ac=2, ar=44100).run(capture_stdout=True))
     raw_data = numpy.frombuffer(out, numpy.int16)
     norm_data = raw_data / raw_data.max(axis=0)
     if len(norm_data) % 2 == 0:
         result_data = [(norm_data[::2]).tolist(), (norm_data[1::2]).tolist()]
     else:
-        result_data = [(norm_data[::2]).tolist(), (norm_data[1::2]).tolist()]  # TODO different channel size
+        result_data = [(norm_data[:-1:2]).tolist(), (norm_data[1::2]).tolist()]  # TODO different channel size
 
-    return [result_data, path, channel]
+    if visual_width > 0:
+        chunk_size = int(len(result_data[0]) / visual_width)
+    else:
+        logger.warning("width = 0 -> cannot divide")
+        return
+    mean_data = []
+    for x in range(0, int(visual_width)):
+        try:
+            mean_data.append(numpy.mean(result_data[0][x * chunk_size: (x + 3) * chunk_size]))
+        except Exception as e:
+            logger.warning(e)
+
+    return [result_data, path, channel, mean_data]
 
 
 def get_list_from_wav(path: str):

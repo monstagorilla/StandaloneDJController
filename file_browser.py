@@ -12,7 +12,7 @@ Builder.load_string('''
 <FileBrowser>:
     id: fb
     rootpath: root.root_path
-    filters: ["*.mp3", "*.wav"]
+    #bfilters: ["*.mp3", "*.wav"]
 ''')
 
 

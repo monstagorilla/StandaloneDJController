@@ -17,17 +17,16 @@ stream_handler.setFormatter(formatter)
 
 
 class Track:
-    def __init__(self, title="", bpm=0, path="", wav_data=None):
+    def __init__(self, title="", bpm="0 bpm", path=""):
         self.title = title
         self.bpm = bpm
         self.path = path
-        self.wav_data = wav_data
 
 
 class AudioVisualizer(Widget):
     wav_data = ListProperty([])
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         super(AudioVisualizer, self).__init__(**kwargs)
         self.abs_pos = [0, 0]
         self.abs_size = [0, 0]
@@ -39,38 +38,28 @@ class AudioVisualizer(Widget):
             self.color_deck1 = Color()
             self.line1 = Line(width=1)
 
-    def _update_pos(self, instance, value):
+    def _update_pos(self, instance, value) -> None:
         self.abs_pos = instance.pos
         self.on_wav_data(None, None)
 
-    def _update_size(self, instance, value):
+    def _update_size(self, instance, value) -> None:
         self.abs_size = instance.size
         self.on_wav_data(None, None)
 
-    def update_track_pos(self):
-        index_pos = int(self.abs_size[0] * self.track_pos * 4)
+    def update_track_pos(self) -> None:
+        index_pos = int(self.abs_size[0] * self.track_pos) * 4  # multiply by 4 because of chunks(len=4) in line_points
         self.line0.points = self.line_points[:index_pos]
         self.line1.points = self.line_points[index_pos:]
 
-    def on_wav_data(self, instance, value):  # TODO realy need instance, value?
-        if self.width > 0:
-            chunk_size = int(len(self.wav_data) / self.width)
-        else:
-            logger.warning("width = 0")
+    def on_wav_data(self, instance, value) -> None:  # TODO problem with missing instance/value parameter?
+        if self.wav_data == []:
             return
-        mean_data = []
-        for x in range(0, int(self.width)):
-            try:
-                mean_data.append(mean(self.wav_data[x * chunk_size: (x + 3) * chunk_size]))
-            except Exception as e:
-                logger.error(e)
-
-        scaling_factor = self.height/max(mean_data)/1.5
+        scaling_factor = self.height/max(self.wav_data)/1.5  # 1.5 is a hardcoded factor
         self.line_points = []
         for x in range(0, int(self.width)):
-            self.line_points.extend([self.abs_pos[0] + x, self.abs_pos[1] - mean_data[x] * scaling_factor + self.abs_size[1] / 2,
-                                     self.abs_pos[0] + x, self.abs_pos[1] + mean_data[x] * scaling_factor + self.abs_size[1] / 2])
-        self.update_track_pos()
+            self.line_points.extend([self.abs_pos[0] + x, self.abs_pos[1] - self.wav_data[x] * scaling_factor + self.abs_size[1] / 2,
+                                     self.abs_pos[0] + x, self.abs_pos[1] + self.wav_data[x] * scaling_factor + self.abs_size[1] / 2])
+        self.update_track_pos()  # TODO maybe not necessary
 
 
 class LabelWithBackground(Label):

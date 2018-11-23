@@ -21,11 +21,12 @@ stream_handler.setFormatter(formatter)
 
 
 class Player(multiprocessing.Process):  # TODO shared memory?
-    def __init__(self, tx_gui: Connection, tx_new_track: Connection, rx_loading: Connection) -> None:
+    def __init__(self, tx_gui: Connection, tx_new_track: Connection, rx_loading: Connection, rx_width: Connection) -> None:
         super(Player, self).__init__()
         self.tx_gui = tx_gui
         self.tx_new_track = tx_new_track
         self.rx_loading = rx_loading
+        self.rx_width = rx_width
 
         # Properties
         self.server = Server()
@@ -59,21 +60,43 @@ class Player(multiprocessing.Process):  # TODO shared memory?
         self.mainVolume.setAmp(0, 0, 1)
         self.mainVolume.out(1)
 
-        Clock.schedule_interval(self.refresh_gui, 0.1)
+        Clock.schedule_interval(self.refresh_gui, 0.001)
         Clock.schedule_interval(self.handler_loading, 0.1)
+        Clock.schedule_interval(self.handler_width, 1)
+
+        self.visual_width = 0
+
+        self.executor = concurrent.futures.ProcessPoolExecutor(max_workers=1)
+
+    def handler_width(self, dt):
+        if self.rx_width.poll():
+            self.visual_width = self.rx_width.recv()
 
     def refresh_gui(self, dt):
-        tx_data = [self.phasor[0].phase, self.phasor[1].phase, self.pos_to_str(0), self.pos_to_str(1),
-                   self.pitch_to_str(0), self.pitch_to_str(1), self.is_playing[0], self.is_playing[1],
-                   self.is_on_headphone[0], self.is_on_headphone[1]]
+        if not self.is_playing[0] and not self.is_playing[1]:
+            return
+        tx_data = []
+        if self.is_playing[0] and self.is_playing[1]:
+            tx_data = [self.phasor[0].get(), self.phasor[1].get(), self.pos_to_str(0), self.pos_to_str(1),
+                           self.pitch_to_str(0), self.pitch_to_str(1), self.is_playing[0], self.is_playing[1],
+                       self.is_on_headphone[0], self.is_on_headphone[1]]
+        elif self.is_playing[0]:
+            tx_data = [self.phasor[0].get(), None, self.pos_to_str(0), None,
+                       self.pitch_to_str(0), None, self.is_playing[0], None,
+                       self.is_on_headphone[0], None]
+        elif self.is_playing[1]:
+            tx_data = [None, self.phasor[1].get(), None, self.pos_to_str(1),
+                       None, self.pitch_to_str(1), None, self.is_playing[1],
+                       None, self.is_on_headphone[1]]
         self.tx_gui.send(tx_data)
 
     def handler_loading(self, dt):
         if self.rx_loading.poll():
-            with concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor:
-                data = self.rx_loading.recv()
-                future = executor.submit(track_loading.load_track, data[0], data[1])
-                future.add_done_callback(self.set_new_track)
+            data = self.rx_loading.recv()
+            if self.is_playing[data[1]]:
+                return
+            future = self.executor.submit(track_loading.load_track, data[0], data[1], self.visual_width)
+            future.add_done_callback(self.set_new_track)
 
     def set_new_track(self, future):
         result = future.result()
@@ -83,13 +106,15 @@ class Player(multiprocessing.Process):  # TODO shared memory?
         if new_table is None:
             logger.error("Loading Failed")
             return
-        self.table[channel] = NewTable(length=len(new_table[0]) / 44100, init=new_table[0], chnls=1)
-        self.track[channel] = Track(title=str(path.split("/")[-1:])[:-3])
-        self.pointer[channel].table = self.table[channel]
+        # TODO maybe use const width and calc small array in future
+        visual_data = result[3][:]
+        self.table[channel] = NewTable(length=len(new_table[0]) / 44100, init=new_table, chnls=1)  # TODO use thread
+        self.track[channel] = Track(title=str(path.split("/")[-1:])[:-3], bpm="120 bpm", path=path)
         self.phasor[channel].reset()
         self.phasor[channel].freq = 0
-        #self.tx_new_track.send([self.title[channel], self.])
-        self.start_stop(0)  # TODO manage start_stop external with wait
+        self.pointer[channel].table = self.table[channel]
+        #self.tx_new_track.send([channel, self.track[channel], visual_data])
+        self.start_stop(channel)  # TODO manage start_stop external with wait
 
     #def get_bpm  # TODO impl fn get_bpm
 
