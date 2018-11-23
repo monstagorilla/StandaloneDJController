@@ -55,11 +55,11 @@ class GUI(BoxLayout):
         self._keyboard.bind(on_key_down=self._on_keyboard_down)
 
         self.rx_player, tx_player = Pipe(duplex=False)  # pipe to update gui regularly
-        rx_loading, self.tx_loading = Pipe(duplex=False)  # pipe to start track loading
         self.rx_new_track, tx_new_track = Pipe(duplex=False)  # pipe to update gui once when track loaded
         rx_width, self.tx_width = Pipe(duplex=False)  # pipe to update gui once when track loaded
+        rx_player_fn, self.tx_player_fn = Pipe(duplex=False)
 
-        self.player = Player(tx_player, tx_new_track, rx_loading, rx_width)
+        self.player = Player(tx_player, tx_new_track, rx_width, rx_player_fn)
         self.player.start()
 
         self.file_browser = FileBrowser()
@@ -169,12 +169,70 @@ class GUI(BoxLayout):
                 self.stop_browsing(0)
             else:
                 self.start_browsing(0)
-        if keycode[1] == "n":
+        elif keycode[1] == "n":
             if self.is_browsing[1]:
                 self.stop_browsing(1)
             else:
                 self.start_browsing(1)
+        # start_stop
+        elif keycode[1] == "v":
+            self.tx_player_fn.send(("start_stop", 0))
+        elif keycode[1] == "m":
+            self.tx_player_fn.send(("start_stop", 1))
 
+        # normal eq left
+        elif keycode[1] == "e":
+            self.tx_player_fn.send(("set_eq", ["high", 0, 0]))
+        elif keycode[1] == "d":
+            self.tx_player_fn.send(("set_eq", ["mid", 0, 0]))
+        elif keycode[1] == "c":
+            self.tx_player_fn.send(("set_eq", ["low", 0, 0]))
+        #  mute eq left
+        elif keycode[1] == "w":
+            self.tx_player_fn.send(("set_eq", ["high", 0, -1]))
+        elif keycode[1] == "s":
+            self.tx_player_fn.send(("set_eq", ["mid", 0, -1]))
+        elif keycode[1] == "x":
+            self.tx_player_fn.send(("set_eq", ["low", 0, -1]))
+        # normal eq right
+        elif keycode[1] == "i":
+            self.tx_player_fn.send(("set_eq", ["high", 1, 0]))
+        elif keycode[1] == "k":
+            self.tx_player_fn.send(("set_eq", ["mid", 1, 0]))
+        elif keycode[1] == ",":
+            self.tx_player_fn.send(("set_eq", ["low", 1, 0]))
+        # mute eq right
+        elif keycode[1] == "o":
+            self.tx_player_fn.send(("set_eq", ["high", 1, -1]))
+        elif keycode[1] == "l":
+            self.tx_player_fn.send(("set_eq", ["mid", 1, -1]))
+        elif keycode[1] == ".":
+            self.tx_player_fn.send(("set_eq", ["low", 1, -1]))
+
+        # set pitch left
+        elif keycode[1] == "r":
+            self.tx_player_fn.send(("set_pitch", [0.9, 0]))
+        elif keycode[1] == "f":
+            self.tx_player_fn.send(("set_pitch", [1.1, 0]))
+        # set pitch right
+        elif keycode[1] == "u":
+            self.tx_player_fn.send(("set_pitch", [0.9, 1]))
+        elif keycode[1] == "j":
+            self.tx_player_fn.send(("set_pitch", [1.1, 1]))
+
+        # do jump left
+        elif keycode[1] == "t":
+            self.tx_player_fn.send(("jump", [-0.1, 0]))
+        elif keycode[1] == "g":
+            self.tx_player_fn.send(("jump", [0.1, 0]))
+        # do jump right
+        elif keycode[1] == "z":
+            self.tx_player_fn.send(("jump", [-0.1, 1]))
+        elif keycode[1] == "h":
+            self.tx_player_fn.send(("jump", [0.1, 1]))
+
+
+        # browsing
         elif self.is_browsing[self.cur_browser]:
             if keycode[1] == 'down':
                 count = len(self.file_browser._items)
@@ -210,7 +268,7 @@ class GUI(BoxLayout):
                             self.file_browser.path = x.path
                         else:
                             logger.info("load_track")
-                            self.tx_loading.send([x.path, self.cur_browser])
+                            self.tx_player_fn.send(("load_track", [x.path, self.cur_browser]))
                             break
             elif keycode[1] == 'left':
                 if self.file_browser.path != self.file_browser.rootpath:
