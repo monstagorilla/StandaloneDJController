@@ -133,7 +133,8 @@ class Player(multiprocessing.Process):  # TODO shared memory?
         # TODO maybe use const width and calc small array in future
         visual_data = result[3][:]
         self.table[channel] = NewTable(length=len(new_table[0]) / 44100, init=new_table, chnls=2)  # TODO use thread
-        self.track[channel] = Track(title=str(path.split("/")[-1:])[:-3], bpm="120 bpm", path=path)
+        # TODO very unsafe
+        self.track[channel] = Track(title=str(path.split("/")[-1:][0].split(".")[:-1][0]), bpm="120 bpm", path=path)
         self.phasor[channel].reset()
         self.phasor[channel].freq = 0
         self.pointer[channel].table = self.table[channel]
@@ -175,9 +176,9 @@ class Player(multiprocessing.Process):  # TODO shared memory?
         equalizer.boost = value * 40  # max lowering 40dB
 
     def pos_to_str(self, channel: int):
-        #pass
         sec, dur = (self.phasor[channel].phase * self.table[channel].getDur(), self.table[channel].getDur())
-        return "{}:{}/{}:{}".format(str(int(sec/60)), str(sec%60).zfill(2), str(int(dur/60)), str(dur%60).zfill(2))
+        return "{}:{}/{}:{}".format(str(int(sec / 60)), str(int(sec) % 60).zfill(2), str(int(dur / 60)),
+                                     str(int(dur) % 60).zfill(2))
 
     def pitch_to_str(self, channel: int):
         return "{}{}%".format(("+" if self.pitch[channel] >= 1 else ""), (self.pitch[channel] - 1) * 100)

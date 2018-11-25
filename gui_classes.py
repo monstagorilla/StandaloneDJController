@@ -52,9 +52,9 @@ class AudioVisualizer(Widget):
         self.line1.points = self.line_points[index_pos:]
 
     def on_wav_data(self, instance, value) -> None:  # TODO problem with missing instance/value parameter?
-        if self.wav_data == []:
+        if not self.wav_data:
             return
-        scaling_factor = self.height/max(self.wav_data)/1.5  # 1.5 is a hardcoded factor
+        scaling_factor = self.height/max(self.wav_data) / 1.5  # 1.5 is a hardcoded factor
         self.line_points = []
         for x in range(0, int(self.width)):
             self.line_points.extend([self.abs_pos[0] + x, self.abs_pos[1] - self.wav_data[x] * scaling_factor + self.abs_size[1] / 2,
