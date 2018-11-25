@@ -24,7 +24,7 @@ def load_track(path: str, channel: int, visual_width: int):
     if len(norm_data) % 2 == 0:
         result_data = [(norm_data[::2]).tolist(), (norm_data[1::2]).tolist()]
     else:
-        result_data = [(norm_data[:-1:2]).tolist(), (norm_data[1::2]).tolist()]  # TODO different channel size
+        result_data = [norm_data[:-1:2].tolist(), norm_data[1::2].tolist()]  # TODO different channel size
 
     if visual_width > 0:
         chunk_size = int(len(result_data[0]) / visual_width)

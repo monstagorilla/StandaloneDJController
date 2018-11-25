@@ -2,7 +2,7 @@ from scipy.io import wavfile
 from kivy.properties import ObjectProperty, StringProperty, ListProperty, NumericProperty, BooleanProperty
 from kivy.uix.widget import Widget
 from kivy.uix.label import Label
-from kivy.graphics import Line, Color
+from kivy.graphics import Line, Color, Rectangle
 from numpy import mean
 import logging
 import sys
@@ -63,7 +63,8 @@ class AudioVisualizer(Widget):
 
 
 class LabelWithBackground(Label):
-    color_widget = ListProperty([0/256, 38/256, 53/256])
+    color = [0/256, 38/256, 53/256]
+    color_widget = ListProperty(color)
 
     def __init__(self, **kwargs):
         super(LabelWithBackground, self).__init__(**kwargs)

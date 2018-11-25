@@ -42,8 +42,8 @@ class Player(multiprocessing.Process):  # TODO shared memory?
 
         # Audio Modules
         self.phasor = [Phasor(freq=0), Phasor(freq=0)]  # TODO prevent from looping
-        self.pointer = [Pointer(table=self.table[0], index=self.phasor[0], mul=0.3),
-                        Pointer(table=self.table[1], index=self.phasor[1], mul=0.3)]  # TODO why mul != 1?
+        self.pointer = [Pointer(table=self.table[0], index=self.phasor[0], mul=1),
+                        Pointer(table=self.table[1], index=self.phasor[1], mul=1)]  # TODO why mul != 1?
         self.pitch = [1, 1]
         self.lowEq = [EQ(input=self.pointer[0], boost=1, freq=125, q=1, type=1),  # TODO good choice for frequencies?
                       EQ(input=self.pointer[1], boost=1, freq=125, q=1, type=1)]
@@ -60,7 +60,9 @@ class Player(multiprocessing.Process):  # TODO shared memory?
         self.mainVolume.addInput(0, self.mixer[0])
         self.mainVolume.setAmp(0, 0, 1)
         self.mainVolume.out(1)
-
+        self.volume_meter_0 = PeakAmp(self.highEq[0], function=self.get_volume0)
+        self.volume_meter_1 = PeakAmp(self.highEq[1], function=self.get_volume1)
+        self.volume = [0, 0]
         Clock.schedule_interval(self.refresh_gui, 0.001)
         Clock.schedule_interval(self.handler_width, 1)
         Clock.schedule_interval(self.handler_player_fn, 0.001)
@@ -69,6 +71,12 @@ class Player(multiprocessing.Process):  # TODO shared memory?
         self.visual_width = 0
 
         self.executor = concurrent.futures.ProcessPoolExecutor(max_workers=1)
+
+    def get_volume0(self, *args):
+        self.volume[0] = args[0]
+
+    def get_volume1(self, *args):
+        self.volume[1] = args[0]
 
     def handler_player_fn(self, dt):
         if self.rx_player_fn.poll():
@@ -103,15 +111,15 @@ class Player(multiprocessing.Process):  # TODO shared memory?
         if self.is_playing[0] and self.is_playing[1]:
             tx_data = [self.phasor[0].get(), self.phasor[1].get(), self.pos_to_str(0), self.pos_to_str(1),
                            self.pitch_to_str(0), self.pitch_to_str(1), self.is_playing[0], self.is_playing[1],
-                       self.is_on_headphone[0], self.is_on_headphone[1]]
+                       self.is_on_headphone[0], self.is_on_headphone[1],self.volume[0], self.volume[1]]
         elif self.is_playing[0]:
             tx_data = [self.phasor[0].get(), None, self.pos_to_str(0), None,
                        self.pitch_to_str(0), None, self.is_playing[0], None,
-                       self.is_on_headphone[0], None]
+                       self.is_on_headphone[0], None, self.volume[0], None]
         elif self.is_playing[1]:
             tx_data = [None, self.phasor[1].get(), None, self.pos_to_str(1),
                        None, self.pitch_to_str(1), None, self.is_playing[1],
-                       None, self.is_on_headphone[1]]
+                       None, self.is_on_headphone[1], None, self.volume[1]]
         self.tx_gui.send(tx_data)
 
     def set_new_track(self, future):
@@ -124,13 +132,12 @@ class Player(multiprocessing.Process):  # TODO shared memory?
             return
         # TODO maybe use const width and calc small array in future
         visual_data = result[3][:]
-        self.table[channel] = NewTable(length=len(new_table[0]) / 44100, init=new_table, chnls=1)  # TODO use thread
+        self.table[channel] = NewTable(length=len(new_table[0]) / 44100, init=new_table, chnls=2)  # TODO use thread
         self.track[channel] = Track(title=str(path.split("/")[-1:])[:-3], bpm="120 bpm", path=path)
         self.phasor[channel].reset()
         self.phasor[channel].freq = 0
         self.pointer[channel].table = self.table[channel]
         self.tx_new_track.send([channel, self.track[channel], visual_data])
-        self.start_stop(channel)  # TODO manage start_stop external with wait
 
     #def get_bpm  # TODO impl fn get_bpm
 

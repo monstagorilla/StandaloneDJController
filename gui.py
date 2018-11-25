@@ -54,6 +54,7 @@ class GUI(BoxLayout):
         self._keyboard = Window.request_keyboard(self._keyboard_closed, self)
         self._keyboard.bind(on_key_down=self._on_keyboard_down)
 
+        # Connections to player
         self.rx_player, tx_player = Pipe(duplex=False)  # pipe to update gui regularly
         self.rx_new_track, tx_new_track = Pipe(duplex=False)  # pipe to update gui once when track loaded
         rx_width, self.tx_width = Pipe(duplex=False)  # pipe to update gui once when track loaded
@@ -63,11 +64,11 @@ class GUI(BoxLayout):
         self.player.start()
 
         self.file_browser = FileBrowser()
-
         self.cur_browser = 0
         self.temp_widget_tree = [None, None]
         self.is_browsing = [False, False]
 
+        # clock scheduling
         Clock.schedule_interval(self.handler_player, 0.001)  # TODO choose good interval time
         Clock.schedule_interval(self.handler_new_track, 0.1)  # TODO choose good interval time
         Clock.schedule_interval(self.send_width, 1)  # TODO choose good interval time
@@ -81,6 +82,9 @@ class GUI(BoxLayout):
     color_deck_r0 = ListProperty([217/256, 121/256, 37/256])
     color_deck_r1 = ListProperty([100/256, 60/256, 15/256])
     color_font = ListProperty([239/256, 231/256, 190/256])
+    color_vu_green = ListProperty([0, 150 / 256, 0])
+    color_vu_yellow = ListProperty([1, 1, 0])
+    color_vu_red = ListProperty([1, 0, 0])
 
     # TODO correct default values
     # Track Info
@@ -102,6 +106,8 @@ class GUI(BoxLayout):
     is_playing1 = BooleanProperty(False)
     is_on_headphone0 = BooleanProperty(True)
     is_on_headphone1 = BooleanProperty(False)
+    volume0 = NumericProperty(0)
+    volume1 = NumericProperty(0)
 
     def handler_new_track(self, dt):
         if self.rx_new_track.poll():
@@ -120,12 +126,14 @@ class GUI(BoxLayout):
         if self.rx_player.poll():
             d = self.rx_player.recv()
             self.update_gui(position0=d[0], position1=d[1], time0=d[2], time1=d[3], pitch0=d[4], pitch1=d[5],
-                            is_playing0=d[6], is_playing1=d[7], is_on_headphone0=d[8], is_on_headphone1=d[9])
+                            is_playing0=d[6], is_playing1=d[7], is_on_headphone0=d[8], is_on_headphone1=d[9],
+                            volume0=d[10], volume1=d[11])
 
     def update_gui(self, track0: Track = None, track1: Track = None, position0: float = None, position1: float = None,
                    time0: str = None, time1: str = None, pitch0: str = None, pitch1: str = None,
                    is_playing0: bool = None, is_playing1: bool = None, is_on_headphone0: bool = None,
-                   is_on_headphone1: bool = None, wav0=None, wav1=None) -> None:
+                   is_on_headphone1: bool = None, wav0=None, wav1=None, volume0: float = None,
+                   volume1: float = None) -> None:
         if track0 is not None:
             self.title0 = track0.title
             self.bpm0 = track0.bpm
@@ -158,6 +166,11 @@ class GUI(BoxLayout):
             self.ids.av_l.wav_data = wav0
         if wav1 is not None:
             self.ids.av_r.wav_data = wav1
+        if volume0 is not None:
+            self.volume0 = volume0
+        if volume1 is not None:
+            self.volume1 = volume1
+
 
     def _keyboard_closed(self) -> None:
         self._keyboard.unbind(on_key_down=self._on_keyboard_down)
@@ -283,6 +296,28 @@ class GUI(BoxLayout):
     def on_position1(self, instance, value) -> None:
         self.ids.av_r.track_pos = value
         self.ids.av_r.update_track_pos()
+
+    def on_volume0(self, instance, value) -> None:
+        index_limit = int(value * len(self.ids.vu0.children))
+        if index_limit >= len(self.ids.vu0.children):
+            logger.error("invalid index")
+            return
+        for i in range(0, len(self.ids.vu0.children)):
+            if i >= index_limit:
+                self.ids.vu0.children[i].color_widget = [0, 0, 0]
+            else:
+                self.ids.vu0.children[i].color_widget = self.ids.vu0.children[i].color
+
+    def on_volume1(self, instance, value) -> None:
+        index_limit = int(value * len(self.ids.vu1.children))
+        if index_limit >= len(self.ids.vu1.children):
+            logger.error("invalid index")
+            return
+        for i in range(0, len(self.ids.vu1.children)):
+            if i >= index_limit:
+                self.ids.vu1.children[i].color_widget = [0, 0, 0]
+            else:
+                self.ids.vu1.children[i].color_widget = self.ids.vu1.children[i].color
 
     def start_browsing(self, channel: int) -> None:
         if self.is_browsing[channel]:
