@@ -1,5 +1,3 @@
-# CLEANED UP
-
 from pyo import *
 import logging
 import multiprocessing
@@ -8,8 +6,8 @@ from kivy.clock import Clock
 from multiprocessing.connection import Connection
 import track_loading
 import concurrent.futures
-import numpy
 from gui_classes import Track
+import ffmpeg
 
 # Logging
 logger = logging.getLogger(__name__)  # TODO redundant code in logger setup(every module)
@@ -34,16 +32,16 @@ class Player(multiprocessing.Process):  # TODO shared memory?
         self.server.setInOutDevice(8)
         self.server.boot()
         self.server.start()
-        self.table = [SndTable(), SndTable()]
         self.track = [Track(), Track()]
         self.is_playing = [False, False]
         self.is_on_headphone = [False, False]
-        self.refresh_snd = [False, False]
+        self.refresh_snd = [False, False]#
+        self.shared_table_p = [SndTable(), SndTable()]
 
         # Audio Modules
         self.phasor = [Phasor(freq=0), Phasor(freq=0)]  # TODO prevent from looping
-        self.pointer = [Pointer(table=self.table[0], index=self.phasor[0], mul=1),
-                        Pointer(table=self.table[1], index=self.phasor[1], mul=1)]  # TODO why mul != 1?
+        self.pointer = [Pointer(table=self.shared_table_p[0], index=self.phasor[0], mul=0.3),
+                        Pointer(table=self.shared_table_p[1], index=self.phasor[1], mul=0.3)]  # TODO why mul != 1?
         self.pitch = [1, 1]
         self.lowEq = [EQ(input=self.pointer[0], boost=1, freq=125, q=1, type=1),  # TODO good choice for frequencies?
                       EQ(input=self.pointer[1], boost=1, freq=125, q=1, type=1)]
@@ -96,8 +94,12 @@ class Player(multiprocessing.Process):  # TODO shared memory?
                     self.set_eq(self.lowEq[args[1]], args[2])
             elif fn == "load_track":
                 if self.is_playing[args[1]]:
+                    logger.warning("is playing")
                     return
-                future = self.executor.submit(track_loading.load_track, args[0], args[1], self.visual_width)
+                info = float(ffmpeg.probe(args[0])["format"]["duration"]) * 44100
+                self.shared_table_p[args[1]] = SharedTable(["/sharedl{}".format(args[1]), "/sharedr{}".format(args[1])],
+                                                           True, int(info))
+                future = self.executor.submit(track_loading.load, args[0], args[1])
                 future.add_done_callback(self.set_new_track)
 
     def handler_width(self, dt):
@@ -110,7 +112,7 @@ class Player(multiprocessing.Process):  # TODO shared memory?
         tx_data = []
         if self.is_playing[0] and self.is_playing[1]:
             tx_data = [self.phasor[0].get(), self.phasor[1].get(), self.pos_to_str(0), self.pos_to_str(1),
-                           self.pitch_to_str(0), self.pitch_to_str(1), self.is_playing[0], self.is_playing[1],
+                       self.pitch_to_str(0), self.pitch_to_str(1), self.is_playing[0], self.is_playing[1],
                        self.is_on_headphone[0], self.is_on_headphone[1],self.volume[0], self.volume[1]]
         elif self.is_playing[0]:
             tx_data = [self.phasor[0].get(), None, self.pos_to_str(0), None,
@@ -124,21 +126,18 @@ class Player(multiprocessing.Process):  # TODO shared memory?
 
     def set_new_track(self, future):
         result = future.result()
-        new_table = result[0]
-        path = result[1]
-        channel = result[2]
-        if new_table is None:
+        path = result[0]
+        channel = result[1]
+        if self.shared_table_p is None:
             logger.error("Loading Failed")
             return
-        # TODO maybe use const width and calc small array in future
-        visual_data = result[3][:]
-        self.table[channel] = NewTable(length=len(new_table[0]) / 44100, init=new_table, chnls=2)  # TODO use thread
         # TODO very unsafe
         self.track[channel] = Track(title=str(path.split("/")[-1:][0].split(".")[:-1][0]), bpm="120 bpm", path=path)
         self.phasor[channel].reset()
         self.phasor[channel].freq = 0
-        self.pointer[channel].table = self.table[channel]
-        self.tx_new_track.send([channel, self.track[channel], visual_data])
+        self.pointer[channel].table = self.shared_table_p[channel]
+        #self.tx_new_track.send([channel, self.track[channel], visual_data])
+
 
     #def get_bpm  # TODO impl fn get_bpm
 
@@ -148,14 +147,17 @@ class Player(multiprocessing.Process):  # TODO shared memory?
             self.is_playing[channel] = False
             logger.info("stopped playback on channel {}".format(channel))
         else:
-            self.phasor[channel].freq = self.table[channel].getRate() * self.pitch[channel]
+            if not self.shared_table_p[channel]:
+                logger.error("no track loaded")
+                return
+            self.phasor[channel].freq = self.shared_table_p[channel].getRate() * self.pitch[channel]
             self.is_playing[channel] = True
             logger.info("started playback on channel {}".format(channel))
 
     def set_pitch(self, value: int, channel: int) -> None:
         self.pitch[channel] = value
-        if self.table[channel] is not None:
-            self.phasor[channel].freq = value * self.table[channel].getRate()
+        if self.shared_table_p[channel] is not None:
+            self.phasor[channel].freq = value * self.shared_table_p[channel].getRate()
         else:
             logger.info("no track loaded")
 
@@ -176,9 +178,9 @@ class Player(multiprocessing.Process):  # TODO shared memory?
         equalizer.boost = value * 40  # max lowering 40dB
 
     def pos_to_str(self, channel: int):
-        sec, dur = (self.phasor[channel].phase * self.table[channel].getDur(), self.table[channel].getDur())
+        sec, dur = (self.phasor[channel].phase * self.shared_table_p[channel].getDur(), self.shared_table_p[channel].getDur())
         return "{}:{}/{}:{}".format(str(int(sec / 60)), str(int(sec) % 60).zfill(2), str(int(dur / 60)),
-                                     str(int(dur) % 60).zfill(2))
+                                    str(int(dur) % 60).zfill(2))
 
     def pitch_to_str(self, channel: int):
         return "{}{}%".format(("+" if self.pitch[channel] >= 1 else ""), (self.pitch[channel] - 1) * 100)

@@ -26,7 +26,6 @@ class USBManager:
 
         Clock.schedule_interval(self.update_state, 1)
 
-
     def analyze_partitions(self):
         for line in self.partition_info.splitlines():
             words = [x.strip() for x in line.split()]
@@ -34,9 +33,7 @@ class USBManager:
             name = words[0]
             try:
                 mountpoint = words[6]
-            except Exception as e:
-                logger.info(e)
-                logger.info("has no mounting point?")
+            except:
                 continue  # has no mounting point
             if maj_num == 8 and (self.system_partition_name not in name):
                 self.device_connected = True

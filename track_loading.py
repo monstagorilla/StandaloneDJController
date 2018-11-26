@@ -17,25 +17,18 @@ formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
 stream_handler.setFormatter(formatter)
 
 
-def load_track(path: str, channel: int, visual_width: int):
+def load(path: str, channel: int):
     out, _ = (ffmpeg.input(path).output('pipe:', format='wav', ac=2, ar=44100).run(capture_stdout=True))
     raw_data = numpy.frombuffer(out, numpy.int16)
     norm_data = raw_data / raw_data.max(axis=0)
     if len(norm_data) % 2 == 0:
-        result_data = [(norm_data[::2]).tolist(), (norm_data[1::2]).tolist()]
+        norm_data = [(norm_data[::2]).tolist(), (norm_data[1::2]).tolist()]
     else:
-        result_data = [norm_data[:-1:2].tolist(), norm_data[1::2].tolist()]  # TODO different channel size
+        norm_data = [norm_data[:-1:2].tolist(), norm_data[1::2].tolist()]  # TODO different channel size
 
-    if visual_width > 0:
-        chunk_size = int(len(result_data[0]) / visual_width)
-    else:
-        logger.warning("width = 0 -> cannot divide")
-        return
-    mean_data = []
-    for x in range(0, int(visual_width)):
-        try:
-            mean_data.append(numpy.mean(result_data[0][x * chunk_size: (x + 3) * chunk_size]))
-        except Exception as e:
-            logger.warning(e)
-
-    return [result_data, path, channel, mean_data]
+    table = NewTable(length=len(norm_data[0]) / 44100, init=norm_data, chnls=2)  # TODO use thread
+    table.fadein(0.1)
+    length = float(ffmpeg.probe(path)["format"]["duration"]) * 44100
+    shared_table_c = SharedTable(["/sharedl{}".format(channel), "/sharedr{}".format(channel)], False, int(length))
+    shared_table_c.copyData(table)
+    return [path, channel]
