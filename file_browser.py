@@ -1,23 +1,31 @@
-# CLEANED UP
-
+# CLEAN
 from usbmanager import USBManager
-import os
-import shutil
 from kivy.uix.filechooser import FileChooserListView
 from kivy.lang.builder import Builder
 from kivy.properties import StringProperty
 from kivy.clock import Clock
+import ffmpeg
+import logging
+import sys
 
+# Logging
+logger = logging.getLogger(__name__)  # TODO redundant code in logger setup(every module)
+logger.setLevel(logging.INFO)
+stream_handler = logging.StreamHandler(sys.stdout)
+logger.addHandler(stream_handler)
+formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
+stream_handler.setFormatter(formatter)
+
+# TODO maybe allow all codecs
 Builder.load_string('''
 <FileBrowser>:
     id: fb
     rootpath: root.root_path
-    #filters: ["*.mp3", "*.wav"]
+    #filters: ["*.mp3", "*.wav"]  
 ''')
 
 
 class FileBrowser(FileChooserListView):
-    # root_path = StringProperty(os.path.expanduser("~/Music"))
     root_path = StringProperty("")
 
     def __init__(self):
@@ -28,12 +36,20 @@ class FileBrowser(FileChooserListView):
 
     def update_mount_point(self, dt):
         result = self.usb_manager.get_mount_point()
+        if not result:
+            logger.error("no result")
+            return
         if result[0] or not self.usb_manager.device_connected:  # mount point is a new one
             # update paths 'cause of new device
             self.root_path = result[1]
             self.path = self.root_path
 
-    def get_codec(self, path):  # TODO maybe somewhere else
-        if len(path) < 3:
-            return
-        return path[-3:]
+    def get_codec(self, path: str) -> str:  # TODO maybe somewhere else,
+        try:
+            codec = ffmpeg.probe(path)["format"]["format_name"]
+        except Exception as e:
+            logger.error(e)
+            # raise
+            return ""  # TODO improve error handling
+        else:
+            return codec

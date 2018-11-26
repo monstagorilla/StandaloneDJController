@@ -49,6 +49,8 @@
                 id: av_l
                 size_hint: 1, None
                 height: 30
+                color_deck0: root.color_deck_l0
+                color_deck1: root.color_deck_l1
 
             #track info
             BoxLayout:
@@ -153,6 +155,7 @@
             LabelWithBackground:
                 color: root.color_vu_green
                 color_widget: 0, 0, 0
+
         BoxLayout:
             id: vu1
             orientation: "vertical"
@@ -241,7 +244,9 @@
                 id: av_r
                 size_hint: 1, None
                 height: 30
-                #color_deck: (1 ,0 , 1)
+                color_deck0: root.color_deck_r0
+                color_deck1: root.color_deck_r1
+
 
             #track info
             BoxLayout:

@@ -1,21 +1,15 @@
 from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
 from kivy.core.window import Window
-from scipy.io import wavfile
 from kivy.properties import ObjectProperty, StringProperty, ListProperty, NumericProperty, BooleanProperty
-from kivy.uix.widget import Widget
 from kivy.uix.label import Label
-from kivy.graphics import Line, Color
-from numpy import mean
-from typing import List
 from player import Player
 from file_browser import FileBrowser
 from kivy.clock import Clock
 import logging
-import sys
 from pyo import *
 from multiprocessing import Pipe
-from gui_classes import AudioVisualizer
+from gui_classes import Track
 
 # Logging
 logger = logging.getLogger(__name__)  # TODO redundant code in logger setup
@@ -24,14 +18,6 @@ stream_handler = logging.StreamHandler(sys.stdout)
 logger.addHandler(stream_handler)
 formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
 stream_handler.setFormatter(formatter)
-
-
-class Track:
-    def __init__(self, title: str, bpm: str, path: str, wav_data: List[int]) -> None:
-        self.title = title
-        self.bpm = bpm
-        self.path = path
-        self.wav_data = wav_data
 
 
 class LabelWithBackground(Label):
@@ -44,36 +30,34 @@ class LabelWithBackground(Label):
 class GUI(BoxLayout):
     def __init__(self, **kwargs) -> None:
         super(GUI, self).__init__(**kwargs)
-        self.ids.av_l.bind(size=self.ids.av_l._update_size, pos=self.ids.av_l._update_pos)
-        self.ids.av_r.bind(size=self.ids.av_r._update_size, pos=self.ids.av_r._update_pos)
-        self.ids.av_l.color_deck0.rgb = self.color_deck_l0
-        self.ids.av_l.color_deck1.rgb = self.color_deck_l1
-        self.ids.av_r.color_deck0.rgb = self.color_deck_r0
-        self.ids.av_r.color_deck1.rgb = self.color_deck_r1
+        # update size and pos of AudioVisualizer
+        self.ids.av_l.bind(size=self.ids.av_l.update_size, pos=self.ids.av_l.update_pos)
+        self.ids.av_r.bind(size=self.ids.av_r.update_size, pos=self.ids.av_r.update_pos)
 
+        # init keyboard input
         self._keyboard = Window.request_keyboard(self._keyboard_closed, self)
         self._keyboard.bind(on_key_down=self._on_keyboard_down)
 
         # Connections to player
-        self.rx_player, tx_player = Pipe(duplex=False)  # pipe to update gui regularly
+        self.rx_gui_update, tx_gui_update = Pipe(duplex=False)
         self.rx_new_track, tx_new_track = Pipe(duplex=False)  # pipe to update gui once when track loaded
-        rx_width, self.tx_width = Pipe(duplex=False)  # pipe to update gui once when track loaded
-        rx_player_fn, self.tx_player_fn = Pipe(duplex=False)
+        self.rx_wav_data, tx_wav_data = Pipe(duplex=False)  # pipe to update gui once when track loaded
+        rx_player_fn, self.tx_player_fn = Pipe(duplex=False)  # pipe to call player functions
 
-        self.player = Player(tx_player, tx_new_track, rx_width, rx_player_fn)
+        # Objects
+        self.player = Player(tx_gui_update, tx_new_track, tx_wav_data, rx_player_fn)
         self.player.start()
-
         self.file_browser = FileBrowser()
         self.cur_browser = 0
         self.temp_widget_tree = [None, None]
         self.is_browsing = [False, False]
+        self.wav_data = [None, None]
 
         # clock scheduling
         Clock.schedule_interval(self.handler_player, 0.001)  # TODO choose good interval time
         Clock.schedule_interval(self.handler_new_track, 0.1)  # TODO choose good interval time
-        Clock.schedule_interval(self.send_width, 1)  # TODO choose good interval time
 
-    #----------------------------------Properties------------------------------------#
+    # ----------------------------------Properties------------------------------------ #
     # GUI globals
     is_browsing = ObjectProperty(0)  # 0 => no browser, 1 => browser on deck 1, 2 => browser on deck 2
     color_background = ListProperty([1/256, 52/256, 64/256])
@@ -88,23 +72,21 @@ class GUI(BoxLayout):
 
     # TODO correct default values
     # Track Info
-    title0 = StringProperty("left")
-    title1 = StringProperty("right")
-    bpm0 = StringProperty("128")
-    bpm1 = StringProperty("70")
-    path0 = StringProperty("path0")  # necessary?
-    path1 = StringProperty("path1")
+    title0 = StringProperty("")
+    title1 = StringProperty("")
+    bpm0 = StringProperty("")
+    bpm1 = StringProperty("")
 
     # Current State
-    time0 = StringProperty("1:45/3:05")
-    time1 = StringProperty("17:04/32:00")
-    position0 = NumericProperty(0.2)
-    position1 = NumericProperty(0.9)
-    pitch0 = StringProperty("0")
-    pitch1 = StringProperty("+0.1")
-    is_playing0 = BooleanProperty(True)
+    time0 = StringProperty("0:00/0:00")
+    time1 = StringProperty("0:00/0:00")
+    position0 = NumericProperty(0)
+    position1 = NumericProperty(0)
+    pitch0 = StringProperty("+0.0%")
+    pitch1 = StringProperty("+0.0%")
+    is_playing0 = BooleanProperty(False)
     is_playing1 = BooleanProperty(False)
-    is_on_headphone0 = BooleanProperty(True)
+    is_on_headphone0 = BooleanProperty(False)
     is_on_headphone1 = BooleanProperty(False)
     volume0 = NumericProperty(0)
     volume1 = NumericProperty(0)
@@ -112,19 +94,22 @@ class GUI(BoxLayout):
     def handler_new_track(self, dt):
         if self.rx_new_track.poll():
             d = self.rx_new_track.recv()
+            if len(d) != 2:
+                logger.error("corrupt data")
+                return
             channel = d[0]
             if channel == 0:
-                self.update_gui(track0=d[1], wav0=d[2])
+                self.update_gui(track0=d[1])
             elif channel == 1:
-                self.update_gui(track1=d[1], wav1=d[2])
+                self.update_gui(track1=d[1])
 
-    def send_width(self, dt):
-        width = self.ids.av_l.size[0]
-        self.tx_width.send(width)
+    def handler_wav_data(self):
+        #if self.rx_wav_data.poll():
+        pass
 
     def handler_player(self, dt):
-        if self.rx_player.poll():
-            d = self.rx_player.recv()
+        if self.rx_gui_update.poll():
+            d = self.rx_gui_update.recv()
             self.update_gui(position0=d[0], position1=d[1], time0=d[2], time1=d[3], pitch0=d[4], pitch1=d[5],
                             is_playing0=d[6], is_playing1=d[7], is_on_headphone0=d[8], is_on_headphone1=d[9],
                             volume0=d[10], volume1=d[11])
@@ -137,11 +122,9 @@ class GUI(BoxLayout):
         if track0 is not None:
             self.title0 = track0.title
             self.bpm0 = track0.bpm
-            self.path0 = track0.path
         if track1 is not None:
             self.title1 = track1.title
             self.bpm1 = track1.bpm
-            self.path1 = track1.path
         if position0 is not None:
             self.position0 = position0
         if position1 is not None:
@@ -170,7 +153,6 @@ class GUI(BoxLayout):
             self.volume0 = volume0
         if volume1 is not None:
             self.volume1 = volume1
-
 
     def _keyboard_closed(self) -> None:
         self._keyboard.unbind(on_key_down=self._on_keyboard_down)
@@ -244,7 +226,6 @@ class GUI(BoxLayout):
         elif keycode[1] == "h":
             self.tx_player_fn.send(("jump", [0.1, 1]))
 
-
         # browsing
         elif self.is_browsing[self.cur_browser]:
             if keycode[1] == 'down':
@@ -298,26 +279,20 @@ class GUI(BoxLayout):
         self.ids.av_r.update_track_pos()
 
     def on_volume0(self, instance, value) -> None:
-        index_limit = int(value * len(self.ids.vu0.children))
-        if index_limit >= len(self.ids.vu0.children):
-            logger.error("invalid index")
-            return
-        for i in range(0, len(self.ids.vu0.children)):
-            if i >= index_limit:
-                self.ids.vu0.children[i].color_widget = [0, 0, 0]
-            else:
-                self.ids.vu0.children[i].color_widget = self.ids.vu0.children[i].color
+        self.on_volume(self.ids.vu0.children, int(value * len(self.ids.vu0.children)))
 
     def on_volume1(self, instance, value) -> None:
-        index_limit = int(value * len(self.ids.vu1.children))
-        if index_limit >= len(self.ids.vu1.children):
+        self.on_volume(self.ids.vu1.children, int(value * len(self.ids.vu1.children)))
+
+    def on_volume(self, children: list, index_limit: int):
+        if index_limit >= len(children):
             logger.error("invalid index")
             return
-        for i in range(0, len(self.ids.vu1.children)):
+        for i in range(0, len(children)):
             if i >= index_limit:
-                self.ids.vu1.children[i].color_widget = [0, 0, 0]
+                children[i].color_widget = [0, 0, 0]
             else:
-                self.ids.vu1.children[i].color_widget = self.ids.vu1.children[i].color
+                children[i].color_widget = children[i].color
 
     def start_browsing(self, channel: int) -> None:
         if self.is_browsing[channel]:

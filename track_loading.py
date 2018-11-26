@@ -1,13 +1,10 @@
-from pyo import *
-import time
-import logging
-import subprocess
-import os
-import numpy
-import shutil
-import ffmpeg
-from scipy.io import wavfile
+# CLEAN
 
+from pyo import *
+import logging
+import numpy
+import ffmpeg
+import decimal
 # Logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -19,16 +16,27 @@ stream_handler.setFormatter(formatter)
 
 def load(path: str, channel: int):
     out, _ = (ffmpeg.input(path).output('pipe:', format='wav', ac=2, ar=44100).run(capture_stdout=True))
+    if not out:
+        logger.error("loading failed")
+        return
     raw_data = numpy.frombuffer(out, numpy.int16)
-    norm_data = raw_data / raw_data.max(axis=0)
+    try:
+        norm_data = raw_data / raw_data.max(axis=0)
+    except Exception as e:
+        logger.error(e)
+        return
     if len(norm_data) % 2 == 0:
         norm_data = [(norm_data[::2]).tolist(), (norm_data[1::2]).tolist()]
     else:
-        norm_data = [norm_data[:-1:2].tolist(), norm_data[1::2].tolist()]  # TODO different channel size
+        norm_data = [norm_data[:-1:2].tolist(), norm_data[1::2].tolist()]
 
-    table = NewTable(length=len(norm_data[0]) / 44100, init=norm_data, chnls=2)  # TODO use thread
+    table = DataTable(size=len(norm_data[0]), init=norm_data, chnls=2)  # TODO "same length error"
     table.fadein(0.1)
-    length = float(ffmpeg.probe(path)["format"]["duration"]) * 44100
+    try:
+        length = float(ffmpeg.probe(path)["format"]["duration"]) * 44100
+    except Exception as e:
+        logger.error(e)
+        return
     shared_table_c = SharedTable(["/sharedl{}".format(channel), "/sharedr{}".format(channel)], False, int(length))
     shared_table_c.copyData(table)
     return [path, channel]

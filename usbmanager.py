@@ -1,4 +1,4 @@
-# CLEANED UP
+# CLEAN
 
 import subprocess
 import logging
@@ -17,8 +17,8 @@ stream_handler.setFormatter(formatter)
 class USBManager:
     def __init__(self):
         self.device_connected = False
-        self.new_mountpoint = False
-        self.mountpoint = ""
+        self.new_mount_point = False
+        self.mount_point = ""
         self.partition_info = ""
         self.system_partition_name = "sda"  # has to be hardcoded
         self.update_process_obj = None
@@ -32,19 +32,19 @@ class USBManager:
             maj_num = int(words[1].split(sep=':')[0])
             name = words[0]
             try:
-                mountpoint = words[6]
+                mount_point = words[6]
             except:
                 continue  # has no mounting point
             if maj_num == 8 and (self.system_partition_name not in name):
                 self.device_connected = True
-                if self.mountpoint != mountpoint:
-                    self.mountpoint = mountpoint
-                    self.new_mountpoint = True
+                if self.mount_point != mount_point:
+                    self.mount_point = mount_point
+                    self.new_mount_point = True
                 return
 
         # no device connected
         self.device_connected = False
-        self.mountpoint = ""
+        self.mount_point = ""
 
     def update_state(self, event):
         if self.is_updating:
@@ -57,10 +57,10 @@ class USBManager:
             self.update_process_obj = subprocess.Popen(["lsblk", "-n"], universal_newlines=True, stdout=subprocess.PIPE)
             self.is_updating = True
 
-    # return True if mountpoint is new
+    # return True if mount_point is new
     def get_mount_point(self):
-        if self.new_mountpoint:
-            self.new_mountpoint = False
-            return [True, self.mountpoint]
+        if self.new_mount_point:
+            self.new_mount_point = False
+            return [True, self.mount_point]
         else:
-            return [False, self.mountpoint]
+            return [False, self.mount_point]

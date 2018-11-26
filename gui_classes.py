@@ -1,9 +1,9 @@
-from scipy.io import wavfile
-from kivy.properties import ObjectProperty, StringProperty, ListProperty, NumericProperty, BooleanProperty
+# CLEAN
+
+from kivy.properties import ListProperty
 from kivy.uix.widget import Widget
 from kivy.uix.label import Label
-from kivy.graphics import Line, Color, Rectangle
-from numpy import mean
+from kivy.graphics import Line, Color
 import logging
 import sys
 
@@ -14,7 +14,6 @@ stream_handler = logging.StreamHandler(sys.stdout)
 logger.addHandler(stream_handler)
 formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
 stream_handler.setFormatter(formatter)
-
 
 class Track:
     def __init__(self, title="", bpm="0 bpm", path=""):
@@ -38,11 +37,11 @@ class AudioVisualizer(Widget):
             self.color_deck1 = Color()
             self.line1 = Line(width=1)
 
-    def _update_pos(self, instance, value) -> None:
+    def update_pos(self, instance, value) -> None:
         self.abs_pos = instance.pos
         self.on_wav_data(None, None)
 
-    def _update_size(self, instance, value) -> None:
+    def update_size(self, instance, value) -> None:
         self.abs_size = instance.size
         self.on_wav_data(None, None)
 
@@ -51,8 +50,12 @@ class AudioVisualizer(Widget):
         self.line0.points = self.line_points[:index_pos]
         self.line1.points = self.line_points[index_pos:]
 
-    def on_wav_data(self, instance, value) -> None:  # TODO problem with missing instance/value parameter?
+    def on_wav_data(self, instance, value) -> None:
         if not self.wav_data:
+            logger.error("no wav_data")
+            return
+        if max(self.wav_data) == 0:
+            logger.error("cannot divide by max_value = 0")
             return
         scaling_factor = self.height/max(self.wav_data) / 1.5  # 1.5 is a hardcoded factor
         self.line_points = []
