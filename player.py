@@ -37,8 +37,9 @@ class Player(multiprocessing.Process):
         self.track = [Track(), Track()]
         self.is_playing = [False, False]
         self.is_on_headphone = [False, False]
-        self.refresh_snd = [False, False]#
-        self.shared_table_p = [SndTable(), SndTable()]  # TODO sndtable?
+        self.is_loading = [False, False]
+        self.refresh_snd = [False, False]
+        self.shared_table_p = [SndTable(), SndTable()]
         self.pitch = [1, 1]
         self.volume = [0, 0]
         self.executor = concurrent.futures.ProcessPoolExecutor(max_workers=1)
@@ -81,13 +82,13 @@ class Player(multiprocessing.Process):
             return
         self.volume[1] = args[0]
 
-    def handler_player_fn(self, dt):
+    def handler_player_fn(self, dt) -> None:
         if self.rx_player_fn.poll():
             fn, args = self.rx_player_fn.recv()
             if fn == "start_stop":
-                #if len(args) != 1:
-                #    logger.error("no args")
-                #    return
+                if args is None:
+                    logger.error("no args")
+                    return
                 self.start_stop(args)
             elif fn == "set_pitch":
                 if len(args) != 2:
@@ -113,37 +114,34 @@ class Player(multiprocessing.Process):
                 if len(args) != 2:
                     logger.error("wrong number of args")
                     return
-                if self.is_playing[args[1]]:
+                if self.is_loading[args[1]]:
+                    logger.info("is already loading")
+                    return
+                elif self.is_playing[args[1]]:
                     logger.info("is playing")
                     return
                 info = float(ffmpeg.probe(args[0])["format"]["duration"]) * 44100
                 self.shared_table_p[args[1]] = SharedTable(["/sharedl{}".format(args[1]), "/sharedr{}".format(args[1])],
                                                            True, int(info))
                 future = self.executor.submit(track_loading.load, args[0], args[1])
+                self.is_loading[args[1]] = True
                 future.add_done_callback(self.set_new_track)
 
     def refresh_gui(self, dt):
-        if not self.is_playing[0] and not self.is_playing[1]:
-            return
-        tx_data = []
-        if self.is_playing[0] and self.is_playing[1]:
+        try:
             tx_data = [self.phasor[0].get(), self.phasor[1].get(), self.pos_to_str(0), self.pos_to_str(1),
                        self.pitch_to_str(0), self.pitch_to_str(1), self.is_playing[0], self.is_playing[1],
                        self.is_on_headphone[0], self.is_on_headphone[1], self.volume[0], self.volume[1]]
-        elif self.is_playing[0]:
-            tx_data = [self.phasor[0].get(), None, self.pos_to_str(0), None,
-                       self.pitch_to_str(0), None, self.is_playing[0], None,
-                       self.is_on_headphone[0], None, self.volume[0], None]
-        elif self.is_playing[1]:
-            tx_data = [None, self.phasor[1].get(), None, self.pos_to_str(1),
-                       None, self.pitch_to_str(1), None, self.is_playing[1],
-                       None, self.is_on_headphone[1], None, self.volume[1]]
-        self.tx_update_gui.send(tx_data)
+        except Exception as e:
+            logger.error(e)
+        else:
+            self.tx_update_gui.send(tx_data)
 
     def set_new_track(self, future):
         result = future.result()
         path = result[0]
         channel = result[1]
+        self.is_loading[channel] = False
         if self.shared_table_p is None:
             logger.error("no table")
             return
@@ -190,7 +188,7 @@ class Player(multiprocessing.Process):
         self.mainVolume.setAmp(0, 0, value)
 
     def jump(self, diff: float, channel: int) -> None:
-        if 0 <= self.phasor[channel].get() + diff <= 1:
+        if 0 <= self.phasor[channel].get() % 1 + diff <= 1:  # modulo for replay loop
             self.phasor[channel].phase += diff
         else:
             logger.info("tried to jump out of bounds")
@@ -202,7 +200,7 @@ class Player(multiprocessing.Process):
         equalizer.boost = value * 40  # max lowering 40dB
 
     def pos_to_str(self, channel: int) -> str:
-        sec, dur = (self.phasor[channel].phase * self.get_dur(channel),
+        sec, dur = (self.phasor[channel].get() * self.get_dur(channel),
                     self.get_dur(channel))
         return "{}:{}/{}:{}".format(str(int(sec / 60)), str(int(sec) % 60).zfill(2), str(int(dur / 60)),
                                     str(int(dur) % 60).zfill(2))

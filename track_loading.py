@@ -30,7 +30,7 @@ def load(path: str, channel: int):
     else:
         norm_data = [norm_data[:-1:2].tolist(), norm_data[1::2].tolist()]
 
-    table = DataTable(size=len(norm_data[0]), init=norm_data, chnls=2)  # TODO "same length error"
+    table = DataTable(size=len(norm_data[0]), init=norm_data, chnls=2)
     table.fadein(0.1)
     try:
         length = float(ffmpeg.probe(path)["format"]["duration"]) * 44100
