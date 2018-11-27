@@ -20,14 +20,13 @@ stream_handler.setFormatter(formatter)
 
 
 class Player(multiprocessing.Process):
-    def __init__(self, tx_update_gui: Connection, tx_new_track: Connection, rx_width: Connection,
-                 rx_player_fn: Connection) -> None:
+    def __init__(self, tx_update_gui: Connection, tx_new_track: Connection, rx_player_fn: Connection, tx_wav_data) -> None:
         super(Player, self).__init__()
         # Pipes
         self.tx_update_gui = tx_update_gui
         self.tx_new_track = tx_new_track
-        self.rx_width = rx_width
         self.rx_player_fn = rx_player_fn
+        self.tx_wav_data = tx_wav_data
 
         # Objects
         self.server = Server()
@@ -123,7 +122,7 @@ class Player(multiprocessing.Process):
                 info = float(ffmpeg.probe(args[0])["format"]["duration"]) * 44100
                 self.shared_table_p[args[1]] = SharedTable(["/sharedl{}".format(args[1]), "/sharedr{}".format(args[1])],
                                                            True, int(info))
-                future = self.executor.submit(track_loading.load, args[0], args[1])
+                future = self.executor.submit(track_loading.load, args[0], args[1], self.tx_wav_data)
                 self.is_loading[args[1]] = True
                 future.add_done_callback(self.set_new_track)
 

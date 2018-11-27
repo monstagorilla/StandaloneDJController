@@ -15,6 +15,7 @@ logger.addHandler(stream_handler)
 formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
 stream_handler.setFormatter(formatter)
 
+
 class Track:
     def __init__(self, title="", bpm="0 bpm", path=""):
         self.title = title

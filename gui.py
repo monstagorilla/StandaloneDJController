@@ -10,6 +10,7 @@ import logging
 from pyo import *
 from multiprocessing import Pipe
 from gui_classes import Track
+import numpy
 
 # Logging
 logger = logging.getLogger(__name__)  # TODO redundant code in logger setup
@@ -33,6 +34,10 @@ class GUI(BoxLayout):
         # update size and pos of AudioVisualizer
         self.ids.av_l.bind(size=self.ids.av_l.update_size, pos=self.ids.av_l.update_pos)
         self.ids.av_r.bind(size=self.ids.av_r.update_size, pos=self.ids.av_r.update_pos)
+        self.ids.av_l.color_deck0.rgb = self.color_deck_l0
+        self.ids.av_l.color_deck1.rgb = self.color_deck_l1
+        self.ids.av_r.color_deck0.rgb = self.color_deck_r0
+        self.ids.av_r.color_deck1.rgb = self.color_deck_r1
 
         # init keyboard input
         self._keyboard = Window.request_keyboard(self._keyboard_closed, self)
@@ -45,7 +50,7 @@ class GUI(BoxLayout):
         rx_player_fn, self.tx_player_fn = Pipe(duplex=False)  # pipe to call player functions
 
         # Objects
-        self.player = Player(tx_gui_update, tx_new_track, tx_wav_data, rx_player_fn)
+        self.player = Player(tx_gui_update, tx_new_track, rx_player_fn, tx_wav_data)
         self.player.start()
         self.file_browser = FileBrowser()
         self.cur_browser = 0
@@ -56,6 +61,7 @@ class GUI(BoxLayout):
         # clock scheduling
         Clock.schedule_interval(self.handler_player, 0.001)  # TODO choose good interval time
         Clock.schedule_interval(self.handler_new_track, 0.1)  # TODO choose good interval time
+        Clock.schedule_interval(self.handler_wav_data, 0.1)
 
     # ----------------------------------Properties------------------------------------ #
     # GUI globals
@@ -103,8 +109,29 @@ class GUI(BoxLayout):
             elif channel == 1:
                 self.update_gui(track1=d[1])
 
-    def handler_wav_data(self):
-        #if self.rx_wav_data.poll():
+    def handler_wav_data(self, dt) -> None:
+        if self.rx_wav_data.poll():
+            wav_data, channel = self.rx_wav_data.recv()
+            self.wav_data[channel] = wav_data
+            visual_width = self.ids.av_l.size[0]
+            if visual_width > 0:
+                chunk_size = int(len(self.wav_data[channel]) / visual_width)
+            else:
+                logger.error("width = 0 -> cannot divide")
+                return
+            mean_data = []
+            for x in range(0, int(visual_width)):
+                try:
+                    mean_data.append(numpy.mean(self.wav_data[channel][x * chunk_size: (x + 3) * chunk_size]))
+                except Exception as e:
+                    logger.warning(e)
+
+            if channel == 0:
+                self.ids.av_l.wav_data = mean_data
+            elif channel == 1:
+                self.ids.av_r.wav_data = mean_data
+
+    def visualsssss(self):
         pass
 
     def handler_player(self, dt):
@@ -117,7 +144,7 @@ class GUI(BoxLayout):
     def update_gui(self, track0: Track = None, track1: Track = None, position0: float = None, position1: float = None,
                    time0: str = None, time1: str = None, pitch0: str = None, pitch1: str = None,
                    is_playing0: bool = None, is_playing1: bool = None, is_on_headphone0: bool = None,
-                   is_on_headphone1: bool = None, wav0=None, wav1=None, volume0: float = None,
+                   is_on_headphone1: bool = None, volume0: float = None,
                    volume1: float = None) -> None:
         if track0 is not None:
             self.title0 = track0.title
@@ -145,10 +172,6 @@ class GUI(BoxLayout):
             self.is_on_headphone0 = is_on_headphone0
         if is_on_headphone1 is not None:
             self.is_on_headphone1 = is_on_headphone1
-        if wav0 is not None:
-            self.ids.av_l.wav_data = wav0
-        if wav1 is not None:
-            self.ids.av_r.wav_data = wav1
         if volume0 is not None:
             self.volume0 = volume0
         if volume1 is not None:
