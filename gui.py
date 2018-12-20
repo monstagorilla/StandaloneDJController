@@ -11,6 +11,7 @@ from pyo import *
 from multiprocessing import Pipe
 from gui_classes import Track
 import numpy
+import math
 
 # Logging
 logger = logging.getLogger(__name__)  # TODO redundant code in logger setup
@@ -113,26 +114,37 @@ class GUI(BoxLayout):
         if self.rx_wav_data.poll():
             wav_data, channel = self.rx_wav_data.recv()
             self.wav_data[channel] = wav_data
-            visual_width = self.ids.av_l.size[0]
-            if visual_width > 0:
-                chunk_size = int(len(self.wav_data[channel]) / visual_width)
-            else:
-                logger.error("width = 0 -> cannot divide")
-                return
-            mean_data = []
-            for x in range(0, int(visual_width)):
-                try:
-                    mean_data.append(numpy.mean(self.wav_data[channel][x * chunk_size: (x + 3) * chunk_size]))
-                except Exception as e:
-                    logger.warning(e)
-
             if channel == 0:
-                self.ids.av_l.wav_data = mean_data
+                self.ids.av_l.wav_data = self.get_visual_data(channel, self.ids.av_l.size[0])
             elif channel == 1:
-                self.ids.av_r.wav_data = mean_data
+                self.ids.av_r.wav_data = self.get_visual_data(channel, self.ids.av_r.size[0])
 
-    def visualsssss(self):
-        pass
+    # width in px, length in samples, pos in samples,
+    def get_visual_data(self, channel: int, width: int, length: int = None, pos: int = None):  # TODO maybe use future
+        if self.wav_data[channel] is None:
+            return
+        if length is None or pos is None:
+            wav_data_slice = numpy.array(self.wav_data[channel])
+        else:
+            wav_data_slice = numpy.zeros(length)
+            temp = numpy.array(self.wav_data[channel][pos - round(length / 2) if 0 <= pos - round(length / 2) else 0:
+                                                      pos + round(length / 2) if pos + round(length / 2) <
+                                                                                 len(self.wav_data[channel]) else
+                                                      len(self.wav_data[channel])])
+            wav_data_slice[int(length / 2) - pos: len(self.wav_data[channel]) - pos + int(length / 2)] = temp
+
+        if width > 0:
+            chunk_size = int(len(wav_data_slice) / width)
+        else:
+            logger.error("width = 0 -> cannot divide")
+            return
+        mean_data = []
+        for x in range(0, int(width)):
+            try:
+                mean_data.append(numpy.mean(wav_data_slice[x * chunk_size: (x + 3) * chunk_size]))
+            except Exception as e:
+                logger.warning(e)
+        return mean_data
 
     def handler_player(self, dt):
         if self.rx_gui_update.poll():
