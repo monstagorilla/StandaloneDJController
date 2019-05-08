@@ -30,7 +30,7 @@ class Player(multiprocessing.Process):
 
         # Objects
         self.server = Server()
-        self.server.setInOutDevice(8)
+        self.server.setInOutDevice(6)
         self.server.boot()
         self.server.start()
         self.track = [Track(), Track()]
