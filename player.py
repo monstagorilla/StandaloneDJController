@@ -136,10 +136,11 @@ class Player(multiprocessing.Process):
         else:
             self.tx_update_gui.send(tx_data)
 
+
     def set_new_track(self, future):
         result = future.result()
-        path = result[0]
-        channel = result[1]
+        path = future.result()[0]
+        channel = future.result()[1]
         self.is_loading[channel] = False
         if self.shared_table_p is None:
             logger.error("no table")

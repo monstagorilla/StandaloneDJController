@@ -99,6 +99,7 @@ class GUI(BoxLayout):
     volume1 = NumericProperty(0)
 
     def handler_new_track(self, dt):
+        return
         if self.rx_new_track.poll():
             d = self.rx_new_track.recv()
             if len(d) != 2:
@@ -111,16 +112,20 @@ class GUI(BoxLayout):
                 self.update_gui(track1=d[1])
 
     def handler_wav_data(self, dt) -> None:
+        return
         if self.rx_wav_data.poll():
             wav_data, channel = self.rx_wav_data.recv()
             self.wav_data[channel] = wav_data
             if channel == 0:
-                self.ids.av_l.wav_data = self.get_visual_data(channel, self.ids.av_l.size[0])
+                self.ids.   av_l.wav_data = self.get_visual_data(channel, self.ids.av_l.size[0])
+                #self.ids.av_l.wav_data = []
             elif channel == 1:
                 self.ids.av_r.wav_data = self.get_visual_data(channel, self.ids.av_r.size[0])
+               # self.ids.av_r.wav_data = []
 
     # width in px, length in samples, pos in samples,
     def get_visual_data(self, channel: int, width: int, length: int = None, pos: int = None):  # TODO maybe use future
+        return
         if self.wav_data[channel] is None:
             return
         if length is None or pos is None:
