@@ -4,3 +4,5 @@ test.wav
 .idea/
 Pipfile.lock
 __pycache__
+rustlib/target
+rustlib/Cargo.lock

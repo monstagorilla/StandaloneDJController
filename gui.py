@@ -319,7 +319,7 @@ class GUI(BoxLayout):
         self.ids.av_r.update_track_pos()
 
     def on_volume0(self, instance, value) -> None:
-        self.on_volume(self.ids.vu0.children, int(value * len(self.ids.vu0.children)))
+        self.on_volume(self.ids.vu0.children, int(value * len(self.ids.vu0.children)))  # TODO use actual gain 
 
     def on_volume1(self, instance, value) -> None:
         self.on_volume(self.ids.vu1.children, int(value * len(self.ids.vu1.children)))
