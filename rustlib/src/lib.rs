@@ -4,15 +4,19 @@ extern crate cpython;
 use cpython::{Python, PyResult};
 py_module_initializer!(rustlib, initlibrustlib, PyInit_rustlib, |py, m| {
     m.add(py, "__doc__", "This module is implemented in Rust.")?;
-    m.add(py, "load_track", py_fn!(py, load_track(path: String, channel: u8)))?;
+    m.add(py, "load_track", py_fn!(py, load_track(path: String, start:String, stop: String, channel: u8)))?;
     Ok(())
 });
 
-fn load_track(_py: Python, path: String, channel: u8) -> PyResult<Vec<Vec<f32>>> {
+fn load_track(_py: Python, path: String, start: String, stop: String, channel: u8) -> PyResult<Vec<Vec<f32>>> { 
+    // spawn ffmpeg command line tool 
+    // TODO use ffmpeg api instead of command line tool
     use std::process::Command;
     use std::io::Read;
     let process =  Command::new("ffmpeg")
     .arg("-i").arg(path)
+    .arg("-ss").arg(start)  // TODO check for correct argument
+    .arg("-to").arg(stop)
     .arg("-ac").arg("2")
     .arg("-ar").arg("44100")
     .arg("-bitexact")
@@ -24,12 +28,11 @@ fn load_track(_py: Python, path: String, channel: u8) -> PyResult<Vec<Vec<f32>>>
 
     let out: std::process::ChildStdout = process.stdout.unwrap();
     
+    // read result with buffer into vectors
     let mut left: Vec<i16> = Vec::new();
     let mut right: Vec<i16> = Vec::new();
-
     let mut buf: [u8; 2] = [0, 0];
-
-    let mut br = std::io::BufReader::with_capacity(400000, out);
+    let mut br = std::io::BufReader::with_capacity(400000, out);  // TODO different capacity?
     
     loop {
         match br.read_exact(&mut buf) {
@@ -45,6 +48,7 @@ fn load_track(_py: Python, path: String, channel: u8) -> PyResult<Vec<Vec<f32>>>
     }
 
     //calculate max value
+    //TODO better way?
     let mut max: i16 = 0;
     for i in 0..left.len(){
         if left[i].abs() > max{
@@ -57,6 +61,8 @@ fn load_track(_py: Python, path: String, channel: u8) -> PyResult<Vec<Vec<f32>>>
         }
     }
 
+    // cast and normalize to f32 floats between -1.0 and 1.0 
+    // TODO good heuristic? what if one value is much bigger than mean values?
     let mut result_l: Vec<f32> = Vec::new();
     let mut result_r: Vec<f32> = Vec::new();
 
@@ -69,9 +75,10 @@ fn load_track(_py: Python, path: String, channel: u8) -> PyResult<Vec<Vec<f32>>>
     for i in 0..right.len(){
         result_r.push((right[i] as f32) / (max as f32));
     }
-
     right.clear();
     right.shrink_to_fit();
+
+    // return Result as 2D vector
     let mut result: Vec<Vec<f32>> = Vec::new();
     result.push(result_l);
     result.push(result_r);

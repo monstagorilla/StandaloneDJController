@@ -69,6 +69,23 @@ class Player(multiprocessing.Process):
         Clock.schedule_interval(self.refresh_gui, 0.001)
         Clock.schedule_interval(self.handler_player_fn, 0.001)
 
+
+    # target: 
+    #   instant jumps and loops should be possible -> problem: limited jump and loop length and limited instant jumps in a row
+    #   -> track should be cached 1 min before and after current position
+    #   -> chunks of 10 seconds -> min 50 seconds in each direction in cache
+    #   -> check jumps and loops for maximum lenth
+    #   -> check if new samples have to be loaded every few (maybe 5 seconds because of maximum pitch of e.g. 100 percent) and after each (loop?) or jump 
+    #   -> 
+
+
+
+
+
+
+
+
+
     def get_volume0(self, *args):
         if len(args) != 1:
             logger.error("no args")
@@ -155,7 +172,7 @@ class Player(multiprocessing.Process):
         self.pointer[channel].table = self.shared_table_p[channel]
         self.tx_new_track.send([channel, self.track[channel]])
 
-    # def get_bpm  # TODO impl fn get_bpm
+    # def get_bpm  TODO impl fn get_bpm
 
     def start_stop(self, channel: int) -> None:
         if self.is_playing[channel]:
@@ -198,7 +215,7 @@ class Player(multiprocessing.Process):
         if value > 0:
             value /= 10  # weaker increasing than lowering
         equalizer.boost = value * 40  # max lowering 40dB
-
+    # TODO use lib to manage functions 
     def pos_to_str(self, channel: int) -> str:
         sec, dur = (self.phasor[channel].get() * self.get_dur(channel),
                     self.get_dur(channel))
