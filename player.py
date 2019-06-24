@@ -64,11 +64,15 @@ class Player(multiprocessing.Process):
         self.mainVolume.out(1)
         self.volume_meter_0 = PeakAmp(self.highEq[0], function=self.get_volume0)
         self.volume_meter_1 = PeakAmp(self.highEq[1], function=self.get_volume1)
-
+        
+        # Cache
+        self.position = [0.0, 0.0]
+        self.cache_bounds = [[0.0, 0.0], [0.0, 0.0]]
+        self.cache_distance = 60.0
         # clock scheduling
         Clock.schedule_interval(self.refresh_gui, 0.001)
         Clock.schedule_interval(self.handler_player_fn, 0.001)
-
+        Clock.schedule_interval(self.check_cache, 10)
 
     # target: 
     #   instant jumps and loops should be possible -> problem: limited jump and loop length and limited instant jumps in a row
@@ -78,8 +82,16 @@ class Player(multiprocessing.Process):
     #   -> check if new samples have to be loaded every few (maybe 5 seconds because of maximum pitch of e.g. 100 percent) and after each (loop?) or jump 
     #   -> 
 
+    def handler_cache(self, dt):
+        self.check_cache(0)
+        self.check_cache(1)
 
-
+    def check_cache(self, channel: int):
+        target_bounds = [self.position[channel] - self.cache
+        if self.position[channel] + self.cache_distance[channel] <= self.shared_table_p[channel].size / 44100:
+            if self.position[channel] + self.cache_distance[channel] > self.cache_bounds[channel][1]:
+                
+            
 
 
 
