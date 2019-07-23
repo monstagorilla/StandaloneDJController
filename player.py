@@ -45,10 +45,14 @@ class Player(multiprocessing.Process):
         self.volume = [0, 0]
         self.executor = concurrent.futures.ProcessPoolExecutor(max_workers=1)
 
+        # Cache
+        self.cache = Cache()
+        self.begin_offset = [0, 0]
+
         # Audio Modules
         self.phasor = [Phasor(freq=0), Phasor(freq=0)]  # TODO prevent from looping, ask muvlon
-        self.pointer = [Pointer(table=self.shared_table_p[0], index=self.phasor[0], mul=1),
-                        Pointer(table=self.shared_table_p[1], index=self.phasor[1], mul=1)]
+        self.pointer = [Pointer(table=self.cache.shared_table[0], index=self.phasor[0], mul=1),
+                        Pointer(table=self.cache.shared_table[1], index=self.phasor[1], mul=1)]
         self.lowEq = [EQ(input=self.pointer[0], boost=1, freq=config.frequency_low, q=1, type=1),  # TODO good choice for frequencies?
                       EQ(input=self.pointer[1], boost=1, freq=config.frequency_low, q=1, type=1)]
         self.midEq = [EQ(input=self.lowEq[0], boost=1, freq=config.frequency_mid, q=0.5, type=0),
@@ -71,10 +75,6 @@ class Player(multiprocessing.Process):
         Clock.schedule_interval(self.refresh_gui, 0.001)
         Clock.schedule_interval(self.handler_player_fn, 0.001)
         Clock.schedule_interval(self.handler_cache, config.chunk_size/4.0)
-    
-        # Cache
-        self.cache = Cache()
-        self.begin_offset = [0, 0]
    
     # CHECKED
     def handler_cache(self, dt):
@@ -101,7 +101,6 @@ class Player(multiprocessing.Process):
                 new_begin = self.begin_offset(channel) + chunk_diff
                 self.cache.insert(path=self.track[channel].path, channel=channel, src_begin=new_begin, size=config.cache_size, back=True)
             else:
-                else :
                 logger.warning("already at end")
                 return
     
@@ -166,9 +165,10 @@ class Player(multiprocessing.Process):
 
     def refresh_gui(self, dt):
         try:
-            tx_data = [self.phasor[0].get(), self.phasor[1].get(), self.pos_to_str(self.get_pos_abs(0), lib.get_dur(self.track[0].path)), self.pos_to_str(self.get_pos_abs(1), lib.get_dur(self.track[1].path),
-                       pitch_to_str(self.pitch[0]), pitch_to_str(self.pitch[0]), self.is_playing[0], self.is_playing[1],
-                       self.is_on_headphone[0], self.is_on_headphone[1], self.volume[0], self.volume[1]]
+            tx_data = [self.phasor[0].get(), self.phasor[1].get(), self.pos_to_str(self.get_pos_abs(0), lib.get_dur(self.track[0].path)), 
+                        self.pos_to_str(self.get_pos_abs(1), lib.get_dur(self.track[1].path)),
+                        pitch_to_str(self.pitch[0]), pitch_to_str(self.pitch[0]), self.is_playing[0], self.is_playing[1],
+                        self.is_on_headphone[0], self.is_on_headphone[1], self.volume[0], self.volume[1]]
         except Exception as e:
             logger.error(e)
         else:
