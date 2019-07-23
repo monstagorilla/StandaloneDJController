@@ -36,12 +36,11 @@ class Player(multiprocessing.Process):
         self.server.boot()
         self.server.start()
         self.track = [Track(), Track()]
-        self.track_info = [TrackInfo(), TrackInfo()]
+        #self.track_info = [TrackInfo(), TrackInfo()]
         self.is_playing = [False, False]
         self.is_on_headphone = [False, False]
         self.is_loading = [False, False]
         self.refresh_snd = [False, False]
-        self.shared_table_p = [SndTable(), SndTabl  e()]
         self.pitch = [1, 1]
         self.volume = [0, 0]
         self.executor = concurrent.futures.ProcessPoolExecutor(max_workers=1)
@@ -76,19 +75,15 @@ class Player(multiprocessing.Process):
         # Cache
         self.cache = Cache()
         self.begin_offset = [0, 0]
-    # target: 
-    #   instant jumps and loops should be possible -> problem: limited jump and loop length and limited instant jumps in a row
-    #   -> track should be cached 1 min before and after current position
-    #   -> chunks of 10 seconds -> min 50 seconds in each direction in cache
-    #   -> check jumps and loops for maximum lenth
-    #   -> check if new samples have to be loaded every few (maybe 5 seconds because of maximum pitch of e.g. 100 percent) and after each (loop?) or jump 
-    #   -> 
-
+   
+    # CHECKED
     def handler_cache(self, dt):
         self.check_cache(0)
         self.check_cache(1)
 
-
+    # TODO waht if ne track 
+    # TODO what if new track shorter than cache size 
+    
     def check_cache(self, channel: int) -> None:
         chunk_diff = lib.time_to_chunks(get_pos_rel(channel) - lib.chunks_to_time(config.cache_size)/2.0)
         if chunk_diff is 0:
@@ -109,13 +104,15 @@ class Player(multiprocessing.Process):
                 else :
                 logger.warning("already at end")
                 return
-            
+    
+    # CHECKED
     def get_volume0(self, *args):
         if len(args) != 1:
             logger.error("no args")
             return
         self.volume[0] = args[0]
 
+    # CHECKED
     def get_volume1(self, *args):
         if len(args) != 1:
             logger.error("no args")
@@ -154,13 +151,13 @@ class Player(multiprocessing.Process):
                 if len(args) != 2:
                     logger.error("wrong number of args")
                     return
-                if self.is_loading[args[1]]:
-                    logger.info("is already loading")
-                    return
+                #if self.is_loading[args[1]]:
+                #    logger.info("is already loading")
+                #    return
                 elif self.is_playing[args[1]]:
                     logger.info("is playing")
                     return
-                info = float(ffmpeg.probe(args[0])["format"]["duration"]) * 44100
+                info = float(ffmpeg.probe(args[0])["format"]["duration"]) * config.sample_rate
                 self.shared_table_p[args[1]] = SharedTable(["/sharedl{}".format(args[1]), "/sharedr{}".format(args[1])], #TODO 
                                                            True, int(info))
                 future = self.executor.submit(track_loading.load, args[0], args[1], self.tx_wav_data)
@@ -169,8 +166,8 @@ class Player(multiprocessing.Process):
 
     def refresh_gui(self, dt):
         try:
-            tx_data = [self.phasor[0].get(), self.phasor[1].get(), self.pos_to_str(0), self.pos_to_str(1),
-                       pitch_to_str(0), pitch_to_str(1), self.is_playing[0], self.is_playing[1],
+            tx_data = [self.phasor[0].get(), self.phasor[1].get(), self.pos_to_str(self.get_pos_abs(0), lib.get_dur(self.track[0].path)), self.pos_to_str(self.get_pos_abs(1), lib.get_dur(self.track[1].path),
+                       pitch_to_str(self.pitch[0]), pitch_to_str(self.pitch[0]), self.is_playing[0], self.is_playing[1],
                        self.is_on_headphone[0], self.is_on_headphone[1], self.volume[0], self.volume[1]]
         except Exception as e:
             logger.error(e)
@@ -197,24 +194,26 @@ class Player(multiprocessing.Process):
         self.tx_new_track.send([channel, self.track[channel]])
 
     # def get_bpm  TODO impl fn get_bpm
-
+    
+    # CHECKED
     def start_stop(self, channel: int) -> None:
         if self.is_playing[channel]:
             self.phasor[channel].freq = 0
             self.is_playing[channel] = False
             logger.info("stopped playback on channel {}".format(channel))
         else:
-            if not self.shared_table_p[channel]:
+            if not self.cache.shared_table[channel]: # TODO never happens because init
                 logger.error("no track loaded")
                 return
-            self.phasor[channel].freq = self.shared_table_p[channel].getRate() * self.pitch[channel]
+            self.phasor[channel].freq = self.cache.shared_table[channel].getRate() * self.pitch[channel]
             self.is_playing[channel] = True
             logger.info("started playback on channel {}".format(channel))
 
+    # CHECKED
     def set_pitch(self, value: int, channel: int) -> None:
         self.pitch[channel] = value
-        if self.shared_table_p[channel] is not None:
-            self.phasor[channel].freq = value * self.shared_table_p[channel].getRate()
+        if self.cache.shared_table[channel] is not None:
+            self.phasor[channel].freq = value * self.cache.shared_table[channel].getRate()
         else:
             logger.info("no track loaded")
 
@@ -228,6 +227,9 @@ class Player(multiprocessing.Process):
     def set_main_volume(self, value: float) -> None:
         self.mainVolume.setAmp(0, 0, value)
 
+
+    # CHECKED
+    # TODO jump is relative to cache size
     def jump(self, diff: float, channel: int) -> None:
         if 0 <= self.phasor[channel].get() % 1 + diff <= 1:  # modulo for replay loop
             self.phasor[channel].phase += diff
@@ -240,12 +242,10 @@ class Player(multiprocessing.Process):
             value /= 10  # weaker increasing than lowering
         equalizer.boost = value * 40  # max lowering 40dB
 
-    def get_pos(self, channel: int) -> float:
-        return self.phasor[channel].get() * #TODO CACHEOFFSET
-
-    # TODO use lib to manage functions 
-    def pos_to_str(self, channel: int) -> str:
-        sec, dur = (self.get_pos(channel),
-                    lib.get_dur(self.track[channel].path))
-        return "{}:{}/{}:{}".format(str(int(sec / 60)), str(int(sec) % 60).zfill(2), str(int(dur / 60)),
-                                    str(int(dur) % 60).zfill(2))
+    # CHECKED
+    def get_pos_abs(self, channel: int) -> float:
+        return self.phasor[channel].get() * config.cache_size + lib.chunks_to_time(self.begin_offset) 
+        
+    # CHECKED
+    def get_pos_rel(self, channel: int) -> float:
+        return self.phasor[channel].get() * config.cache_size
