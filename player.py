@@ -1,4 +1,3 @@
-# CLEAN
 from pyo import *
 import logging
 import multiprocessing
@@ -9,6 +8,7 @@ import track_loading
 import concurrent.futures
 from gui_classes import Track
 import ffmpeg
+import config
 
 # Logging
 logger = logging.getLogger(__name__)  # TODO redundant code in logger setup(every module)
@@ -30,7 +30,7 @@ class Player(multiprocessing.Process):
 
         # Objects
         self.server = Server()
-        self.server.setInOutDevice(6)
+        self.server.setInOutDevice(config.audio_device)
         self.server.boot()
         self.server.start()
         self.track = [Track(), Track()]
@@ -38,7 +38,7 @@ class Player(multiprocessing.Process):
         self.is_on_headphone = [False, False]
         self.is_loading = [False, False]
         self.refresh_snd = [False, False]
-        self.shared_table_p = [SndTable(), SndTable()]
+        self.shared_table_p = [SndTable(), SndTabl  e()]
         self.pitch = [1, 1]
         self.volume = [0, 0]
         self.executor = concurrent.futures.ProcessPoolExecutor(max_workers=1)
@@ -47,12 +47,12 @@ class Player(multiprocessing.Process):
         self.phasor = [Phasor(freq=0), Phasor(freq=0)]  # TODO prevent from looping, ask muvlon
         self.pointer = [Pointer(table=self.shared_table_p[0], index=self.phasor[0], mul=1),
                         Pointer(table=self.shared_table_p[1], index=self.phasor[1], mul=1)]
-        self.lowEq = [EQ(input=self.pointer[0], boost=1, freq=125, q=1, type=1),  # TODO good choice for frequencies?
-                      EQ(input=self.pointer[1], boost=1, freq=125, q=1, type=1)]
-        self.midEq = [EQ(input=self.lowEq[0], boost=1, freq=1200, q=0.5, type=0),
-                      EQ(input=self.lowEq[1], boost=1, freq=1200, q=0.5, type=0)]
-        self.highEq = [EQ(input=self.midEq[0], boost=1, freq=4000, q=1, type=2),
-                       EQ(input=self.midEq[1], boost=1, freq=4000, q=1, type=2)]
+        self.lowEq = [EQ(input=self.pointer[0], boost=1, freq=config.frequency_low, q=1, type=1),  # TODO good choice for frequencies?
+                      EQ(input=self.pointer[1], boost=1, freq=config.frequency_low, q=1, type=1)]
+        self.midEq = [EQ(input=self.lowEq[0], boost=1, freq=config.frequency_mid, q=0.5, type=0),
+                      EQ(input=self.lowEq[1], boost=1, freq=config.frequency_mid, q=0.5, type=0)]
+        self.highEq = [EQ(input=self.midEq[0], boost=1, freq=config.frequency_high, q=1, type=2),
+                       EQ(input=self.midEq[1], boost=1, freq=config.frequency_high, q=1, type=2)]
         self.mixer = Mixer(outs=1, chnls=2)
         self.mixer.addInput(0, self.highEq[0])
         self.mixer.addInput(1, self.highEq[1])
@@ -64,16 +64,12 @@ class Player(multiprocessing.Process):
         self.mainVolume.out(1)
         self.volume_meter_0 = PeakAmp(self.highEq[0], function=self.get_volume0)
         self.volume_meter_1 = PeakAmp(self.highEq[1], function=self.get_volume1)
-        
-        # Cache
-        self.position = [0.0, 0.0]
-        self.cache_bounds = [[0.0, 0.0], [0.0, 0.0]]
-        self.cache_distance = 60.0
+
         # clock scheduling
         Clock.schedule_interval(self.refresh_gui, 0.001)
         Clock.schedule_interval(self.handler_player_fn, 0.001)
         Clock.schedule_interval(self.check_cache, 10)
-
+    
     # target: 
     #   instant jumps and loops should be possible -> problem: limited jump and loop length and limited instant jumps in a row
     #   -> track should be cached 1 min before and after current position
@@ -86,13 +82,43 @@ class Player(multiprocessing.Process):
         self.check_cache(0)
         self.check_cache(1)
 
+
     def check_cache(self, channel: int):
         target_bounds = [self.position[channel] - self.cache
         if self.position[channel] + self.cache_distance[channel] <= self.shared_table_p[channel].size / 44100:
             if self.position[channel] + self.cache_distance[channel] > self.cache_bounds[channel][1]:
                 
+    def get
+    
             
+    def get_bounds(self, channel: int) -> (float, float):
+        pos = self.get_pos(channel)
+        past = 0.0
+        future = 0.0
+        reach_start, residual_past= False, 0.0
+        reach_end, residual_future = False, 0.0
 
+        if pos >= self.cache_distance:
+            past = pos - self.cache_distance
+        else:
+            reach_start, residual_past = True, self.cache_distance - pos
+        
+        if pos + self.cache_bounds <= self.get_dur(channel):
+            future = pos + self.cache_bounds
+        else:
+            future = self.get_dur(channel)
+            reach_end, residual_future = True, self.cache_bounds - (self.get_dur(channel)- pos) 
+
+        # track shorter than 2 * cache_bounds
+        if reach_start and reach_end:
+            logger.info("track shorter than 2 * cache_bounds")
+            return 
+
+
+
+
+
+        future = 
 
 
 
@@ -149,7 +175,7 @@ class Player(multiprocessing.Process):
                     logger.info("is playing")
                     return
                 info = float(ffmpeg.probe(args[0])["format"]["duration"]) * 44100
-                self.shared_table_p[args[1]] = SharedTable(["/sharedl{}".format(args[1]), "/sharedr{}".format(args[1])],
+                self.shared_table_p[args[1]] = SharedTable(["/sharedl{}".format(args[1]), "/sharedr{}".format(args[1])], #TODO 
                                                            True, int(info))
                 future = self.executor.submit(track_loading.load, args[0], args[1], self.tx_wav_data)
                 self.is_loading[args[1]] = True
@@ -227,9 +253,13 @@ class Player(multiprocessing.Process):
         if value > 0:
             value /= 10  # weaker increasing than lowering
         equalizer.boost = value * 40  # max lowering 40dB
+
+    def get_pos(self, channel: int) -> float:
+        return self.phasor[channel].get() * self.get_dur(channel)
+
     # TODO use lib to manage functions 
     def pos_to_str(self, channel: int) -> str:
-        sec, dur = (self.phasor[channel].get() * self.get_dur(channel),
+        sec, dur = (self.get_pos(channel),
                     self.get_dur(channel))
         return "{}:{}/{}:{}".format(str(int(sec / 60)), str(int(sec) % 60).zfill(2), str(int(dur / 60)),
                                     str(int(dur) % 60).zfill(2))
@@ -238,4 +268,4 @@ class Player(multiprocessing.Process):
         return "{0}{1:.1f}%".format(("+" if self.pitch[channel] >= 1 else ""), (self.pitch[channel] - 1) * 100)
 
     def get_dur(self, channel: int) -> float:
-        return self.shared_table_p[channel].getSize() / 44100
+        return self.shared_table_p[channel].getSize() / 44100+

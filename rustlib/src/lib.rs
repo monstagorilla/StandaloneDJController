@@ -4,11 +4,11 @@ extern crate cpython;
 use cpython::{Python, PyResult};
 py_module_initializer!(rustlib, initlibrustlib, PyInit_rustlib, |py, m| {
     m.add(py, "__doc__", "This module is implemented in Rust.")?;
-    m.add(py, "load_track", py_fn!(py, load_track(path: String, start:String, stop: String, channel: u8)))?;
+    m.add(py, "load_track", py_fn!(py, load_track(path: String, start:String, stop: String)))?;
     Ok(())
 });
-
-fn load_track(_py: Python, path: String, start: String, stop: String, channel: u8) -> PyResult<Vec<Vec<f32>>> { 
+// TODO: if track ends -> fill vector with zeros 
+fn load_track(_py: Python, path: String, start: String, stop: String) -> PyResult<Vec<Vec<f32>>> { 
     // spawn ffmpeg command line tool 
     // TODO use ffmpeg api instead of command line tool
     use std::process::Command;
