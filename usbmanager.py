@@ -4,6 +4,7 @@ import subprocess
 import logging
 import sys
 from kivy.clock import Clock
+import config
 
 # Logging
 logger = logging.getLogger(__name__)  # TODO redundant code in logger setup
@@ -20,7 +21,6 @@ class USBManager:
         self.new_mount_point = False
         self.mount_point = ""
         self.partition_info = ""
-        self.system_partition_name = "sda"  # has to be hardcoded
         self.update_process_obj = None
         self.is_updating = False
 
@@ -35,7 +35,7 @@ class USBManager:
                 mount_point = words[6]
             except:
                 continue  # has no mounting point
-            if maj_num == 8 and (self.system_partition_name not in name):
+            if maj_num == 8 and (config.system_partition_name not in name):
                 self.device_connected = True
                 if self.mount_point != mount_point:
                     self.mount_point = mount_point

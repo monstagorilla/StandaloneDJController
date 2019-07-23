@@ -9,6 +9,8 @@ import concurrent.futures
 from gui_classes import Track
 import ffmpeg
 import config
+from lib import *
+import cache
 
 # Logging
 logger = logging.getLogger(__name__)  # TODO redundant code in logger setup(every module)
@@ -34,6 +36,7 @@ class Player(multiprocessing.Process):
         self.server.boot()
         self.server.start()
         self.track = [Track(), Track()]
+        self.track_info = [TrackInfo(), TrackInfo()]
         self.is_playing = [False, False]
         self.is_on_headphone = [False, False]
         self.is_loading = [False, False]
@@ -68,8 +71,11 @@ class Player(multiprocessing.Process):
         # clock scheduling
         Clock.schedule_interval(self.refresh_gui, 0.001)
         Clock.schedule_interval(self.handler_player_fn, 0.001)
-        Clock.schedule_interval(self.check_cache, 10)
+        Clock.schedule_interval(self.handler_cache, config.chunk_size/4.0)
     
+        # Cache
+        self.cache = Cache()
+        self.begin_offset = [0, 0]
     # target: 
     #   instant jumps and loops should be possible -> problem: limited jump and loop length and limited instant jumps in a row
     #   -> track should be cached 1 min before and after current position
@@ -83,47 +89,27 @@ class Player(multiprocessing.Process):
         self.check_cache(1)
 
 
-    def check_cache(self, channel: int):
-        target_bounds = [self.position[channel] - self.cache
-        if self.position[channel] + self.cache_distance[channel] <= self.shared_table_p[channel].size / 44100:
-            if self.position[channel] + self.cache_distance[channel] > self.cache_bounds[channel][1]:
-                
-    def get
-    
-            
-    def get_bounds(self, channel: int) -> (float, float):
-        pos = self.get_pos(channel)
-        past = 0.0
-        future = 0.0
-        reach_start, residual_past= False, 0.0
-        reach_end, residual_future = False, 0.0
-
-        if pos >= self.cache_distance:
-            past = pos - self.cache_distance
-        else:
-            reach_start, residual_past = True, self.cache_distance - pos
-        
-        if pos + self.cache_bounds <= self.get_dur(channel):
-            future = pos + self.cache_bounds
-        else:
-            future = self.get_dur(channel)
-            reach_end, residual_future = True, self.cache_bounds - (self.get_dur(channel)- pos) 
-
-        # track shorter than 2 * cache_bounds
-        if reach_start and reach_end:
-            logger.info("track shorter than 2 * cache_bounds")
+    def check_cache(self, channel: int) -> None:
+        chunk_diff = lib.time_to_chunks(get_pos_rel(channel) - lib.chunks_to_time(config.cache_size)/2.0)
+        if chunk_diff is 0:
             return 
-
-
-
-
-
-        future = 
-
-
-
-
-
+        
+        elif chunk_diff < 0:
+            if self.begin_offset(channel) + chunk_diff >=0:
+                new_begin = self.begin_offset(channel) + chunk_diff
+                self.cache.insert(path=self.track[channel].path, channel=channel, src_begin=new_begin, size=config.cache_size, back=False)
+            else :
+                logger.warning("already at start")
+                return
+        elif chunk_diff > 0:
+            if self.begin_offset(channel) + config.cache_size + chunk_diff <= lib.time_to_chunks(self.get_dur()):
+                new_begin = self.begin_offset(channel) + chunk_diff
+                self.cache.insert(path=self.track[channel].path, channel=channel, src_begin=new_begin, size=config.cache_size, back=True)
+            else:
+                else :
+                logger.warning("already at end")
+                return
+            
     def get_volume0(self, *args):
         if len(args) != 1:
             logger.error("no args")
@@ -184,7 +170,7 @@ class Player(multiprocessing.Process):
     def refresh_gui(self, dt):
         try:
             tx_data = [self.phasor[0].get(), self.phasor[1].get(), self.pos_to_str(0), self.pos_to_str(1),
-                       self.pitch_to_str(0), self.pitch_to_str(1), self.is_playing[0], self.is_playing[1],
+                       pitch_to_str(0), pitch_to_str(1), self.is_playing[0], self.is_playing[1],
                        self.is_on_headphone[0], self.is_on_headphone[1], self.volume[0], self.volume[1]]
         except Exception as e:
             logger.error(e)
@@ -255,17 +241,11 @@ class Player(multiprocessing.Process):
         equalizer.boost = value * 40  # max lowering 40dB
 
     def get_pos(self, channel: int) -> float:
-        return self.phasor[channel].get() * self.get_dur(channel)
+        return self.phasor[channel].get() * #TODO CACHEOFFSET
 
     # TODO use lib to manage functions 
     def pos_to_str(self, channel: int) -> str:
         sec, dur = (self.get_pos(channel),
-                    self.get_dur(channel))
+                    lib.get_dur(self.track[channel].path))
         return "{}:{}/{}:{}".format(str(int(sec / 60)), str(int(sec) % 60).zfill(2), str(int(dur / 60)),
                                     str(int(dur) % 60).zfill(2))
-
-    def pitch_to_str(self, channel: int) -> str:
-        return "{0}{1:.1f}%".format(("+" if self.pitch[channel] >= 1 else ""), (self.pitch[channel] - 1) * 100)
-
-    def get_dur(self, channel: int) -> float:
-        return self.shared_table_p[channel].getSize() / 44100+
