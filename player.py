@@ -10,7 +10,7 @@ from gui_classes import Track
 import ffmpeg
 import config
 from lib import *
-import cache
+from cache import Cache
 
 # Logging
 logger = logging.getLogger(__name__)  # TODO redundant code in logger setup(every module)
@@ -46,14 +46,14 @@ class Player(multiprocessing.Process):
         self.executor = concurrent.futures.ProcessPoolExecutor(max_workers=1)
 
         # Cache
-        self.cache = Cache()
+        self.cache = Cache(self)
         self.begin_offset = [0, 0]
 
         # Audio Modules
-        self.phasor = [Phasor(freq=0), Phasor(freq=0)]  # TODO prevent from looping, ask muvlon
+        self.phasor = [Phasor(freq=0), Phasor(freq=0)]  # TODO prevent from looping
         self.pointer = [Pointer(table=self.cache.shared_table[0], index=self.phasor[0], mul=1),
                         Pointer(table=self.cache.shared_table[1], index=self.phasor[1], mul=1)]
-        self.lowEq = [EQ(input=self.pointer[0], boost=1, freq=config.frequency_low, q=1, type=1),  # TODO good choice for frequencies?
+        self.lowEq = [EQ(input=self.pointer[0], boost=1, freq=config.frequency_low, q=1, type=1),  
                       EQ(input=self.pointer[1], boost=1, freq=config.frequency_low, q=1, type=1)]
         self.midEq = [EQ(input=self.lowEq[0], boost=1, freq=config.frequency_mid, q=0.5, type=0),
                       EQ(input=self.lowEq[1], boost=1, freq=config.frequency_mid, q=0.5, type=0)]
@@ -85,21 +85,21 @@ class Player(multiprocessing.Process):
     # TODO what if new track shorter than cache size 
     
     def check_cache(self, channel: int) -> None:
-        chunk_diff = lib.time_to_chunks(get_pos_rel(channel) - lib.chunks_to_time(config.cache_size)/2.0)
+        chunk_diff = time_to_chunks(self.get_pos_rel(channel) - chunks_to_time(config.cache_size)/2.0)
         if chunk_diff is 0:
             return 
         
-        elif chunk_diff < 0:
-            if self.begin_offset(channel) + chunk_diff >=0:
-                new_begin = self.begin_offset(channel) + chunk_diff
-                self.cache.insert(path=self.track[channel].path, channel=channel, src_begin=new_begin, size=config.cache_size, back=False)
-            else :
+        elif chunk_diff < 0: # player plays befor mid of cache
+            if  self.begin_offset[channel] + chunk_diff >=0: # it is possible to load chunks before actual cache
+                new_begin = self.begin_offset[channel] + chunk_diff
+                self.cache.insert(path=self.track[channel].path, channel=channel, src_begin=new_begin, size=abs(chunk_diff), back=False)
+            else:
                 logger.warning("already at start")
                 return
-        elif chunk_diff > 0:
-            if self.begin_offset(channel) + config.cache_size + chunk_diff <= lib.time_to_chunks(self.get_dur()):
-                new_begin = self.begin_offset(channel) + chunk_diff
-                self.cache.insert(path=self.track[channel].path, channel=channel, src_begin=new_begin, size=config.cache_size, back=True)
+        elif chunk_diff > 0: #player plays after mid of cache
+            if self.begin_offset[channel] + config.cache_size + chunk_diff <= time_to_chunks(get_dur(self.track[channel].path)): # it is possible to load chunks after actual cache
+                new_begin = self.begin_offset[channel] + chunk_diff
+                self.cache.insert(path=self.track[channel].path, channel=channel, src_begin=new_begin, size=abs(chunk_diff), back=True)
             else:
                 logger.warning("already at end")
                 return
@@ -157,7 +157,7 @@ class Player(multiprocessing.Process):
                     logger.info("is playing")
                     return
                 info = float(ffmpeg.probe(args[0])["format"]["duration"]) * config.sample_rate
-                self.shared_table_p[args[1]] = SharedTable(["/sharedl{}".format(args[1]), "/sharedr{}".format(args[1])], #TODO 
+                self.cache.shared_table[args[1]] = SharedTable(["/sharedl{}".format(args[1]), "/sharedr{}".format(args[1])], #TODO 
                                                            True, int(info))
                 future = self.executor.submit(track_loading.load, args[0], args[1], self.tx_wav_data)
                 self.is_loading[args[1]] = True
@@ -165,8 +165,8 @@ class Player(multiprocessing.Process):
 
     def refresh_gui(self, dt):
         try:
-            tx_data = [self.phasor[0].get(), self.phasor[1].get(), self.pos_to_str(self.get_pos_abs(0), lib.get_dur(self.track[0].path)), 
-                        self.pos_to_str(self.get_pos_abs(1), lib.get_dur(self.track[1].path)),
+            tx_data = [self.phasor[0].get(), self.phasor[1].get(), pos_to_str(self.get_pos_abs(0), get_dur(self.track[0].path)), 
+                        pos_to_str(self.get_pos_abs(1), get_dur(self.track[1].path)),
                         pitch_to_str(self.pitch[0]), pitch_to_str(self.pitch[0]), self.is_playing[0], self.is_playing[1],
                         self.is_on_headphone[0], self.is_on_headphone[1], self.volume[0], self.volume[1]]
         except Exception as e:
@@ -180,7 +180,7 @@ class Player(multiprocessing.Process):
         path = future.result()[0]
         channel = future.result()[1]
         self.is_loading[channel] = False
-        if self.shared_table_p is None:
+        if self.cache.shared_table[channel] is None:
             logger.error("no table")
             return
         try:
@@ -190,7 +190,7 @@ class Player(multiprocessing.Process):
             return
         self.phasor[channel].reset()
         self.phasor[channel].freq = 0
-        self.pointer[channel].table = self.shared_table_p[channel]
+        self.pointer[channel].table = self.cache.shared_table[channel]
         self.tx_new_track.send([channel, self.track[channel]])
 
     # def get_bpm  TODO impl fn get_bpm
@@ -244,8 +244,8 @@ class Player(multiprocessing.Process):
 
     # CHECKED
     def get_pos_abs(self, channel: int) -> float:
-        return self.phasor[channel].get() * config.cache_size + lib.chunks_to_time(self.begin_offset) 
+        return self.get_pos_rel(channel) + chunks_to_time(self.begin_offset) 
         
     # CHECKED
     def get_pos_rel(self, channel: int) -> float:
-        return self.phasor[channel].get() * config.cache_size
+        return chunks_to_time(self.phasor[channel].get() * config.cache_size)

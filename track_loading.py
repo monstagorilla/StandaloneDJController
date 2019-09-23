@@ -26,7 +26,7 @@ stream_handler.setFormatter(formatter)
 
 # call rust function for controlled memory management and enhanced speed
 # audio samples are always in memory once
-# calculate diferrent fractures
+# calculate different fractures
 
 def load(path: str, channel: int, src_begin: int, size: list, dest_begin: list) -> int:
     if len(size) != len(dest_begin):

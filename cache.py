@@ -4,6 +4,7 @@ from pyo import *
 import track_loading 
 import concurrent.futures
 import logging
+from player import Player
 
 # Logging
 logger = logging.getLogger(__name__)  # TODO redundant code in logger setup(every module)
@@ -13,15 +14,17 @@ logger.addHandler(stream_handler)
 formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
 stream_handler.setFormatter(formatter)
 
-class Cache():
-    def __init__(self) -> None:
+class Cache:
+    def __init__(self, player: Player) -> None:
         self.start = [0, 0]
         self.shared_table = [SharedTable(["/sharedl0", "/sharedr0"], True, int(config.chunk_size * config.cache_size * config.sample_rate)),
                         SharedTable(["/sharedl1", "/sharedr1"], True, int(config.chunk_size * config.cache_size * config.sample_rate))]
         self.executor = concurrent.futures.ProcessPoolExecutor(max_workers=1)
         self.is_loading = [False, False]
+        self.player = player        
          
-    def insert(self, path: str, channel: int, src_begin: int, size: int, back: bool = True, write_to_begin: bool = False) -> None: 
+    def insert(self, path: str, channel: int, src_begin: int, size: int, back: bool = True, write_to_begin: bool = False) -> None: # write_to_begin: if cache should be filled from the begin
+                                                                                                                                   # back: if cache should be inserted after starting point 
         # Error handling 
         if self.is_loading:
             logger.error("already loading")
@@ -29,13 +32,14 @@ class Cache():
         if size > config.cache_size:
             logger.error("size greater than cache_size")
             return
-        if write_to_begin and back:
+        #?????
+        if write_to_begin and not back: # it makes no sense to write explicite a new new track backwards from the beginning
             logger.error("invalid combination of bool parameters")
             return 
 
         # calculate position in cache where to start loading 
         dest_begin = 0
-        if not write_to_begin:
+        if not write_to_begin: # if to write from actual starting point
             dest_begin = self.start[channel]
             self.start[channel] = dest_begin + size
             if not back:
@@ -54,3 +58,6 @@ class Cache():
 
     def done_loading(self, future) -> None:
         self.is_loading[future.result()] = False
+        logger.debug("done_loading")
+        # setze player variablen 
+        #self.player

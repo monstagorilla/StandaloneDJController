@@ -18,7 +18,7 @@ def chunks_to_time(chunks: int) -> float:
 def time_to_chunks(time: float) -> int:
     return copysign(ceil(abs(time) / config.chunk_size), time)
 
-def pitch_to_str(self, pitch: float) -> str:
+def pitch_to_str(pitch: float) -> str:
     return "{0}{1:.1f}%".format(("+" if pitch >= 1 else ""), (pitch - 1) * 100)
 
 def get_dur(path: str) -> float:
@@ -29,6 +29,6 @@ def get_dur(path: str) -> float:
         return
     return length
 
-def pos_to_str(self, sec: float, dur: float) -> str:
+def pos_to_str(sec: float, dur: float) -> str:
         return "{}:{}/{}:{}".format(str(int(sec / 60)), str(int(sec) % 60).zfill(2), str(int(dur / 60)),
                                     str(int(dur) % 60).zfill(2))
