@@ -28,7 +28,7 @@ stream_handler.setFormatter(formatter)
 # audio samples are always in memory once
 # calculate different fractures
 
-def load(path: str, channel: int, src_begin: int, size: list, dest_begin: list) -> int:
+def load(path: str, channel: int, src_begin: int, size: list, dest_begin: list, back: bool) -> [int, int]:
     if len(size) != len(dest_begin):
         logger.error("different list sizes")
 
@@ -51,4 +51,12 @@ def load(path: str, channel: int, src_begin: int, size: list, dest_begin: list) 
     
         shared_table_c.copyData(table=table, 
                                 destpos = chunks_to_time(dest_begin[i]) * config.sample_rate)
-    return channel
+    if back:
+        return [channel, total_size]
+    else:
+        return [channel, -total_size]
+
+def load_new(path: str, channel: int, src_begin: int, size: list, dest_begin: list, back: bool) -> [int, int, str]:
+    result = load(path, channel, src_begin, size, dest_begin, back)
+    result.append(path)
+    return result

@@ -28,9 +28,12 @@ class USBManager:
 
     def analyze_partitions(self):
         for line in self.partition_info.splitlines():
-            words = [x.strip() for x in line.split()]
-            maj_num = int(words[1].split(sep=':')[0])
-            name = words[0]
+            try:
+                words = [x.strip() for x in line.split()]
+                maj_num = int(words[1].split(sep=':')[0])
+                name = words[0]
+            except:
+                continue
             try:
                 mount_point = words[6]
             except:
