@@ -26,9 +26,9 @@ class Cache:
     def insert(self, path: str, channel: int, src_begin: int, size: int, back: bool = True, is_new_track: bool = False) -> None: # write_to_begin: if cache should be filled from the begin
                                                                                                                                    # back: if cache should be inserted after starting point 
         # Error handling 
-        if self.is_loading:
-            logger.error("already loading")
-            return
+        #if self.is_loading[channel]: #TODO double checking already loading???
+        #    logger.error("already loading")
+        #    return
         if size > config.cache_size:
             logger.error("size greater than cache_size")
             return
@@ -46,14 +46,25 @@ class Cache:
                 dest_begin = (self.start[channel] - size) % config.cache_size
                 self.start[channel] = dest_begin
 
-        # load either one continuous parts or two seperate parts into cache  
-        if dest_begin + size > config.cache_size:
-            future = self.executor.submit(track_loading.load, path, channel, src_begin, [config.cache_size - dest_begin, size - (config.cache_size - dest_begin)], [dest_begin, 0], back)
-        else:
-            future = self.executor.submit(track_loading.load, path, channel, src_begin, size, dest_begin, back)
-    
-        self.is_loading[channel] = True
+        # load either one continuous parts or two seperate parts into cache 
+        try: 
+            if dest_begin + size > config.cache_size:
+                print("LOAD 2")
+                future = self.executor.submit(track_loading.load, path, channel, src_begin, [config.cache_size - dest_begin, size - (config.cache_size - dest_begin)], [dest_begin, 0], back)
+            else:
+                print("LOAD 1")
+                if is_new_track:
+                    future = self.executor.submit(track_loading.load_new, path, channel, src_begin, [size], [dest_begin],
+                                                  back)
+                else:
+                    future = self.executor.submit(track_loading.load, path, channel, src_begin, [size], [dest_begin], back)
+        except Exception as e:
+            logger.error(e)
+            if config.release_mode:
+                pass
+
+        #self.is_loading[channel] = True
         if is_new_track:
             future.add_done_callback(self.player.done_new_track)
         else:    
-            future.add_done_callback(self.player.done_loading)
+            future.add_done_callback(self.player.done_cache_update)

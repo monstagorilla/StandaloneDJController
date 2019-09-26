@@ -41,16 +41,17 @@ def load(path: str, channel: int, src_begin: int, size: list, dest_begin: list, 
     #table.fadein(0.1)  # prevent noise at beginning # TODO: find reason for noise, maybe metadata interpreted as audio samples
 
     # use shared table object for accesing from different processes because pyo table objects are not pickable  
-    shared_table_c = SharedTable(name=["/sharedl{}".format(channel), "/sharedr{}".format(channel)], create=False, size=chunks_to_time(total_size) * config.sample_rate)   
+    shared_table_c = SharedTable(name=["/sharedl{}".format(channel), "/sharedr{}".format(channel)], create=False, size=int(chunks_to_time(total_size) * config.sample_rate))
 
-    for i in range(0, len(dest_begin)): 
-        table = DataTable(size=chunks_to_time(size[i]) * config.sample_rate, 
-                        init=[result_data[0][chunks_to_time(dest_begin[i]) * config.sample_rate: chunks_to_time(dest_begin[i] + size[i]) * config.sample_rate],
-                            result_data[1][chunks_to_time(dest_begin[i]) * config.sample_rate: chunks_to_time(dest_begin[i] + size[i]) * config.sample_rate]], 
+    for i in range(0, len(dest_begin)):
+        print("iteration: "  + str(i))
+        table = DataTable(size=int(chunks_to_time(size[i]) * config.sample_rate),
+                        init=[result_data[0][int(chunks_to_time(dest_begin[i]) * config.sample_rate): int(chunks_to_time(dest_begin[i] + size[i]) * config.sample_rate)],
+                            result_data[1][int(chunks_to_time(dest_begin[i]) * config.sample_rate): int(chunks_to_time(dest_begin[i] + size[i]) * config.sample_rate)]],
                         chnls=2)
     
         shared_table_c.copyData(table=table, 
-                                destpos = chunks_to_time(dest_begin[i]) * config.sample_rate)
+                                destpos=int(chunks_to_time(dest_begin[i]) * config.sample_rate))
     if back:
         return [channel, total_size]
     else:
@@ -59,4 +60,6 @@ def load(path: str, channel: int, src_begin: int, size: list, dest_begin: list, 
 def load_new(path: str, channel: int, src_begin: int, size: list, dest_begin: list, back: bool) -> [int, int, str]:
     result = load(path, channel, src_begin, size, dest_begin, back)
     result.append(path)
+    print("LISTE result")
+    print(result)
     return result

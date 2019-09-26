@@ -11,6 +11,7 @@ from pyo import *
 from multiprocessing import Pipe
 from gui_classes import Track
 import numpy
+import config
 import math
 
 # Logging
@@ -52,7 +53,14 @@ class GUI(BoxLayout):
 
         # Objects
         self.player = Player(tx_gui_update, tx_new_track, rx_player_fn, tx_wav_data)
-        self.player.start()
+
+        try:        
+            self.player.start()
+        except Exception as e:
+            logger.error(e)
+            if config.release_mode:
+                pass
+
         self.file_browser = FileBrowser()
         self.cur_browser = 0
         self.temp_widget_tree = [None, None]

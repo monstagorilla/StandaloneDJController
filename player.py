@@ -73,33 +73,48 @@ class Player(multiprocessing.Process):
         # clock scheduling
         Clock.schedule_interval(self.refresh_gui, 0.001)
         Clock.schedule_interval(self.handler_player_fn, 0.001)
-        Clock.schedule_interval(self.handler_cache, config.chunk_size/4.0)
-   
+        #Clock.schedule_interval(self.handler_cache, config.chunk_size/4.0)
+        Clock.schedule_interval(self.handler_cache, 1)
+
     # CHECKED
     def handler_cache(self, dt):
         self.check_cache(0)
         self.check_cache(1)
+        print("ABSOLUTE")
+        print(self.get_pos_abs(0))
+        print("RESUlt:")
+        print(self.get_pos_rel(0))
 
-    # TODO waht if ne track 
+    # TODO waht if ne track
     # TODO what if new track shorter than cache size 
     
     # CHECKED
     def check_cache(self, channel: int) -> None:
+        logger.error("in check_cache")
         chunk_diff = time_to_chunks(self.get_pos_rel(channel) - chunks_to_time(config.cache_size)/2.0)
         if chunk_diff is 0:
             return 
         
-        elif chunk_diff < 0: # player plays befor mid of cache
+        elif chunk_diff < 0: # player plays before mid of cache
             if  self.begin_offset[channel] + chunk_diff >=0: # it is possible to load chunks before actual cache
                 new_begin = self.begin_offset[channel] + chunk_diff
-                self.cache.insert(path=self.track[channel].path, channel=channel, src_begin=new_begin, size=abs(chunk_diff), back=False)
+                if self.cache.is_loading[channel]:
+                    return
+                else:
+                    self.cache.is_loading[channel] = True
+                    self.cache.insert(path=self.track[channel].path, channel=channel, src_begin=new_begin, size=abs(chunk_diff), back=False)
             else:
                 logger.warning("already at start")
                 return
         elif chunk_diff > 0: #player plays after mid of cache
-            if self.begin_offset[channel] + config.cache_size + chunk_diff <= time_to_chunks(get_dur(self.track[channel].path)): # it is possible to load chunks after actual cache
+            print("scuuuuuuuuuuurrr")
+            if self.begin_offset[channel] + config.cache_size + chunk_diff <= time_to_chunks(get_dur(self.track[channel].path)):  # it is possible to load chunks after actual cache
                 new_begin = self.begin_offset[channel] + chunk_diff
-                self.cache.insert(path=self.track[channel].path, channel=channel, src_begin=new_begin, size=abs(chunk_diff), back=True)
+                if self.cache.is_loading[channel]:
+                    return
+                else:
+                    self.cache.is_loading[channel] = True
+                    self.cache.insert(path=self.track[channel].path, channel=channel, src_begin=new_begin, size=abs(chunk_diff), back=True)
             else:
                 logger.warning("already at end")
                 return
@@ -107,14 +122,14 @@ class Player(multiprocessing.Process):
     # CHECKED
     def get_volume0(self, *args): # TODO: Documentation
         if len(args) != 1:
-            logger.error("no args")
+            #logger.error("no args")
             return
         self.volume[0] = args[0]
 
     # CHECKED
     def get_volume1(self, *args):
         if len(args) != 1:
-            logger.error("no args")
+            #logger.error("no args")
             return
         self.volume[1] = args[0]
 
@@ -156,6 +171,7 @@ class Player(multiprocessing.Process):
                 elif self.is_playing[args[1]]:
                     logger.info("is playing")
                     return
+                self.cache.is_loading[args[1]] = True
                 self.cache.insert(path=args[0], channel=args[1], src_begin=0, size=config.cache_size, is_new_track=True)
 
     def refresh_gui(self, dt):
@@ -173,14 +189,19 @@ class Player(multiprocessing.Process):
 
     def done_cache_update(self, future) -> None:
         result = future.result()
-        #offsets
-        self.begin_offset[result[0]] += result[1]
-        self.cache.is_loading[future.result()] = False
+        channel = result[0]
+        offset_diff = result[1]
+        self.begin_offset[channel] += offset_diff
+        print("OFFSET_DIFF: " + str(offset_diff))
+        print("NEW_OFFSET: " + str(self.begin_offset[channel]))
+        self.cache.is_loading[channel] = False
+        print("CHECK loading ending")
 
     def done_new_track(self, future) -> None:
         result = future.result()
-        path = future.result()[0]
-        channel = future.result()[1]
+        channel = result[0]
+        offset_diff = result[1]
+        path = result[2]
         if self.cache.shared_table[channel] is None:
             logger.error("no table")
             return
@@ -193,6 +214,9 @@ class Player(multiprocessing.Process):
         self.phasor[channel].freq = 0
         self.tx_new_track.send([channel, self.track[channel]])
         self.cache.is_loading[channel] = False
+        #self.begin_offset[channel] += offset_diff
+        #logger.debug("offset_diff = " + str(offset_diff))
+        print("CHECK loading ending")
 
     # def get_bpm  TODO impl fn get_bpm
     
@@ -247,8 +271,32 @@ class Player(multiprocessing.Process):
 
     # CHECKED
     def get_pos_abs(self, channel: int) -> float:
-        return self.get_pos_rel(channel) + chunks_to_time(self.begin_offset[channel]) 
+        return self.get_pos_rel(channel) + chunks_to_time(self.begin_offset[channel])
         
     # CHECKED
     def get_pos_rel(self, channel: int) -> float:
-        return self.phasor[channel].get() * config.cache_size
+        diff = self.phasor[channel].get() - chunks_to_time(self.begin_offset[channel] % config.cache_size) / chunks_to_time(config.cache_size)
+        if diff < 0:
+            result = (1 + diff) * chunks_to_time(config.cache_size)
+        else:
+            result = diff * chunks_to_time(config.cache_size)
+        return result
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        #logger.warning((self.phasor[channel].get() - chunks_to_time(self.begin_offset[channel] % config.cache_size)/chunks_to_time(config.cache_size)) * chunks_to_time(config.cache_size))
+        #print("zwiscehnrechnung")
+        #print(chunks_to_time(self.begin_offset[channel] % config.cache_size)/chunks_to_time(config.cache_size))
+        #print("rel")
+        #return (self.phasor[channel].get() - chunks_to_time(self.begin_offset[channel] % config.cache_size)/chunks_to_time(config.cache_size)) * chunks_to_time(config.cache_size)
