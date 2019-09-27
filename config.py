@@ -1,5 +1,5 @@
 audio_device = 6 
-cache_size = 4  # cache size in chunks
+cache_size = 3  # cache size in chunks
 chunk_size = 11.88861678  # chunk size in seconds TODO: explain or calculate number
 sample_rate = 44100  # sample rate in Hertz
 # eq frequencies

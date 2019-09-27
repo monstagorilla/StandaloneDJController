@@ -40,11 +40,12 @@ class Cache:
         # calculate position in cache where to start loading 
         dest_begin = 0
         if not is_new_track: # if to write from actual starting point
-            dest_begin = self.start[channel]
-            self.start[channel] = dest_begin + size
-            if not back:
+            if back:
+                dest_begin = self.start[channel]
+                self.start[channel] = dest_begin + size
+            else:
                 dest_begin = (self.start[channel] - size) % config.cache_size
-                self.start[channel] = dest_begin
+                self.start[channel] = (self.start[channel] - size) % config.cache_size #?????????????????
 
         # load either one continuous parts or two seperate parts into cache 
         try: 

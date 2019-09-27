@@ -95,26 +95,28 @@ class Player(multiprocessing.Process):
         if chunk_diff is 0:
             return 
         
-        elif chunk_diff < 0: # player plays before mid of cache
-            if  self.begin_offset[channel] + chunk_diff >=0: # it is possible to load chunks before actual cache
-                new_begin = self.begin_offset[channel] + chunk_diff
+        elif chunk_diff < 0:  # player plays before mid of cache
+            if self.begin_offset[channel] + chunk_diff >= 0: # it is possible to load chunks before actual cache
+                src_begin = self.begin_offset[channel] + chunk_diff
                 if self.cache.is_loading[channel]:
                     return
                 else:
                     self.cache.is_loading[channel] = True
-                    self.cache.insert(path=self.track[channel].path, channel=channel, src_begin=new_begin, size=abs(chunk_diff), back=False)
+                    print("burrrrrrrrrrrrrrrrrr")
+                    self.cache.insert(path=self.track[channel].path, channel=channel, src_begin=src_begin, size=abs(chunk_diff), back=False)
             else:
                 logger.warning("already at start")
                 return
-        elif chunk_diff > 0: #player plays after mid of cache
-            print("scuuuuuuuuuuurrr")
+        elif chunk_diff > 0:  # player plays after mid of cache
+            print("OFFSET WHILE Loading: " + str(self.begin_offset[channel]))
             if self.begin_offset[channel] + config.cache_size + chunk_diff <= time_to_chunks(get_dur(self.track[channel].path)):  # it is possible to load chunks after actual cache
-                new_begin = self.begin_offset[channel] + chunk_diff
+                src_begin = self.begin_offset[channel] + config.cache_size + chunk_diff - 1
                 if self.cache.is_loading[channel]:
                     return
                 else:
                     self.cache.is_loading[channel] = True
-                    self.cache.insert(path=self.track[channel].path, channel=channel, src_begin=new_begin, size=abs(chunk_diff), back=True)
+                    print("scuuuuuuuuuuurrr")
+                    self.cache.insert(path=self.track[channel].path, channel=channel, src_begin=src_begin, size=chunk_diff, back=True)
             else:
                 logger.warning("already at end")
                 return
@@ -191,7 +193,7 @@ class Player(multiprocessing.Process):
         result = future.result()
         channel = result[0]
         offset_diff = result[1]
-        self.begin_offset[channel] += offset_diff
+        self.begin_offset[channel] += int(offset_diff)
         print("OFFSET_DIFF: " + str(offset_diff))
         print("NEW_OFFSET: " + str(self.begin_offset[channel]))
         self.cache.is_loading[channel] = False
