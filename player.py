@@ -4,17 +4,15 @@ import multiprocessing
 import sys
 from kivy.clock import Clock
 from multiprocessing.connection import Connection
-import track_loading
 import concurrent.futures
 from gui_classes import Track
 import ffmpeg
 import config
 from lib import *
-from cache import Cache
 
 # Logging
 logger = logging.getLogger(__name__)  # TODO redundant code in logger setup(every module)
-logger.setLevel(logging.INFO)
+logger.setLevel(config.logging_level)
 stream_handler = logging.StreamHandler(sys.stdout)
 logger.addHandler(stream_handler)
 formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
@@ -52,7 +50,7 @@ class Player(multiprocessing.Process):
         self.phasor = [Phasor(freq=0), Phasor(freq=0)]  # TODO prevent from looping
         self.pointer = [Pointer(table=self.cache.shared_table[0], index=self.phasor[0], mul=1),
                         Pointer(table=self.cache.shared_table[1], index=self.phasor[1], mul=1)]
-        self.lowEq = [EQ(input=self.pointer[0], boost=1, freq=config.frequency_low, q=1, type=1),  
+        self.lowEq = [EQ(input=self.pointer[0], boost=1, freq=config.frequency_low, q=1, type=1),
                       EQ(input=self.pointer[1], boost=1, freq=config.frequency_low, q=1, type=1)]
         self.midEq = [EQ(input=self.lowEq[0], boost=1, freq=config.frequency_mid, q=0.5, type=0),
                       EQ(input=self.lowEq[1], boost=1, freq=config.frequency_mid, q=0.5, type=0)]
@@ -61,7 +59,7 @@ class Player(multiprocessing.Process):
         self.mixer = Mixer(outs=1, chnls=2)
         self.mixer.addInput(0, self.highEq[0])
         self.mixer.addInput(1, self.highEq[1])
-        self.mixer.setAmp(0, 0, 0.5) 
+        self.mixer.setAmp(0, 0, 0.5)
         self.mixer.setAmp(1, 0, 0.5)
         self.mainVolume = Mixer(outs=1, chnls=2)
         self.mainVolume.addInput(0, self.mixer[0])
@@ -86,23 +84,20 @@ class Player(multiprocessing.Process):
         print(self.get_pos_rel(0))
 
     # TODO waht if ne track
-    # TODO what if new track shorter than cache size 
-    
+    # TODO what if new track shorter than cache size
+
     # CHECKED
     def check_cache(self, channel: int) -> None:
         logger.error("in check_cache")
         chunk_diff = time_to_chunks(self.get_pos_rel(channel) - chunks_to_time(config.cache_size)/2.0)
         if chunk_diff is 0:
-            return 
-        
+            return
         elif chunk_diff < 0:  # player plays before mid of cache
             if self.begin_offset[channel] + chunk_diff >= 0: # it is possible to load chunks before actual cache
                 src_begin = self.begin_offset[channel] + chunk_diff
                 if self.cache.is_loading[channel]:
                     return
                 else:
-                    self.cache.is_loading[channel] = True
-                    print("burrrrrrrrrrrrrrrrrr")
                     self.cache.insert(path=self.track[channel].path, channel=channel, src_begin=src_begin, size=abs(chunk_diff), back=False)
             else:
                 logger.warning("already at start")
@@ -110,17 +105,15 @@ class Player(multiprocessing.Process):
         elif chunk_diff > 0:  # player plays after mid of cache
             print("OFFSET WHILE Loading: " + str(self.begin_offset[channel]))
             if self.begin_offset[channel] + config.cache_size + chunk_diff <= time_to_chunks(get_dur(self.track[channel].path)):  # it is possible to load chunks after actual cache
-                src_begin = self.begin_offset[channel] + config.cache_size + chunk_diff - 1
+                src_begin = self.begin_offset[channel] + config.cache_size + chunk_diff #- 1
                 if self.cache.is_loading[channel]:
                     return
                 else:
-                    self.cache.is_loading[channel] = True
-                    print("scuuuuuuuuuuurrr")
                     self.cache.insert(path=self.track[channel].path, channel=channel, src_begin=src_begin, size=chunk_diff, back=True)
             else:
                 logger.warning("already at end")
                 return
-    
+
     # CHECKED
     def get_volume0(self, *args): # TODO: Documentation
         if len(args) != 1:
@@ -159,6 +152,7 @@ class Player(multiprocessing.Process):
                     return
                 if args[0] == "high":
                     self.set_eq(self.highEq[args[1]], args[2])  # args[1] == channel, args[2] == value
+
                 elif args[0] == "mid":
                     self.set_eq(self.midEq[args[1]], args[2])
                 elif args[0] == "low":
@@ -173,17 +167,16 @@ class Player(multiprocessing.Process):
                 elif self.is_playing[args[1]]:
                     logger.info("is playing")
                     return
-                self.cache.is_loading[args[1]] = True
                 self.cache.insert(path=args[0], channel=args[1], src_begin=0, size=config.cache_size, is_new_track=True)
 
     def refresh_gui(self, dt):
         if self.track[0].path == "" or self.track[1].path == "":
             return
         try:
-            tx_data = [self.phasor[0].get(), self.phasor[1].get(), pos_to_str(self.get_pos_abs(0), get_dur(self.track[0].path)), 
-                        pos_to_str(self.get_pos_abs(1), get_dur(self.track[1].path)),
-                        pitch_to_str(self.pitch[0]), pitch_to_str(self.pitch[0]), self.is_playing[0], self.is_playing[1],
-                        self.is_on_headphone[0], self.is_on_headphone[1], self.volume[0], self.volume[1]]
+            tx_data = [self.phasor[0].get(), self.phasor[1].get(), pos_to_str(self.get_pos_abs(0), get_dur(self.track[0].path)),
+                       pos_to_str(self.get_pos_abs(1), get_dur(self.track[1].path)),
+                       pitch_to_str(self.pitch[0]), pitch_to_str(self.pitch[0]), self.is_playing[0], self.is_playing[1],
+                       self.is_on_headphone[0], self.is_on_headphone[1], self.volume[0], self.volume[1]]
         except Exception as e:
             logger.error(e)
         else:
@@ -221,7 +214,7 @@ class Player(multiprocessing.Process):
         print("CHECK loading ending")
 
     # def get_bpm  TODO impl fn get_bpm
-    
+
     # CHECKED
     def start_stop(self, channel: int) -> None:
         if self.is_playing[channel]:
@@ -247,7 +240,7 @@ class Player(multiprocessing.Process):
     def set_position(self, position: float, channel: int) -> None:  # TODO not using this function yet, maybe for loop
         self.phasor[channel].reset()
         self.phasor[channel].phase = position
-  
+
     # CHECKED
     def set_line_volume(self, value: float, channel: int) -> None:
         self.mixer.setAmp(channel, 0, value)
@@ -269,12 +262,14 @@ class Player(multiprocessing.Process):
     def set_eq(self, equalizer: EQ, value: float) -> None:
         if value > 0:
             value /= 10  # weaker increasing than lowering
+
         equalizer.boost = value * 40  # max lowering 40dB
+
 
     # CHECKED
     def get_pos_abs(self, channel: int) -> float:
         return self.get_pos_rel(channel) + chunks_to_time(self.begin_offset[channel])
-        
+
     # CHECKED
     def get_pos_rel(self, channel: int) -> float:
         diff = self.phasor[channel].get() - chunks_to_time(self.begin_offset[channel] % config.cache_size) / chunks_to_time(config.cache_size)
@@ -284,21 +279,4 @@ class Player(multiprocessing.Process):
             result = diff * chunks_to_time(config.cache_size)
         return result
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-        #logger.warning((self.phasor[channel].get() - chunks_to_time(self.begin_offset[channel] % config.cache_size)/chunks_to_time(config.cache_size)) * chunks_to_time(config.cache_size))
-        #print("zwiscehnrechnung")
-        #print(chunks_to_time(self.begin_offset[channel] % config.cache_size)/chunks_to_time(config.cache_size))
-        #print("rel")
-        #return (self.phasor[channel].get() - chunks_to_time(self.begin_offset[channel] % config.cache_size)/chunks_to_time(config.cache_size)) * chunks_to_time(config.cache_size)
+from cache import Cache  # TODO: different solution for dependency cycle

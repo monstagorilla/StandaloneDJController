@@ -7,10 +7,11 @@ from kivy.clock import Clock
 import ffmpeg
 import logging
 import sys
+import config
 
 # Logging
 logger = logging.getLogger(__name__)  # TODO redundant code in logger setup(every module)
-logger.setLevel(logging.INFO)
+logger.setLevel(config.logging_level)
 stream_handler = logging.StreamHandler(sys.stdout)
 logger.addHandler(stream_handler)
 formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')

@@ -10,7 +10,7 @@ import os
 
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(config.logging_level)
 stream_handler = logging.StreamHandler(sys.stdout)
 logger.addHandler(stream_handler)
 formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
