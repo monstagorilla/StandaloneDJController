@@ -24,7 +24,7 @@ class Player(multiprocessing.Process):
         super(Player, self).__init__()
         # Pipes
         self.tx_update_gui = tx_update_gui
-        self.tx_new_track = tx_new_track
+        self.tx_new_track = tx_new_track    
         self.rx_player_fn = rx_player_fn
         self.tx_wav_data = tx_wav_data
 
@@ -37,10 +37,9 @@ class Player(multiprocessing.Process):
         #self.track_info = [TrackInfo(), TrackInfo()]
         self.is_playing = [False, False]
         self.is_on_headphone = [False, False]
-        self.refresh_snd = [False, False]
+        #self.refresh_snd = [False, False]
         self.pitch = [1, 1]
         self.volume = [0, 0]
-        self.executor = concurrent.futures.ProcessPoolExecutor(max_workers=1)
 
         # Cache
         self.cache = Cache(self)
@@ -78,44 +77,36 @@ class Player(multiprocessing.Process):
     def handler_cache(self, dt):
         self.check_cache(0)
         self.check_cache(1)
-        print("ABSOLUTE")
-        print(self.get_pos_abs(0))
-        print("RESUlt:")
-        print(self.get_pos_rel(0))
+        a = self.get_pos_abs(0)  # DEBUG
 
-    # TODO waht if ne track
+    # TODO what if ne track
     # TODO what if new track shorter than cache size
 
-    # CHECKED
     def check_cache(self, channel: int) -> None:
-        logger.error("in check_cache")
         chunk_diff = time_to_chunks(self.get_pos_rel(channel) - chunks_to_time(config.cache_size)/2.0)
         if chunk_diff is 0:
             return
         elif chunk_diff < 0:  # player plays before mid of cache
-            if self.begin_offset[channel] + chunk_diff >= 0: # it is possible to load chunks before actual cache
+            if self.begin_offset[channel] + chunk_diff >= 0:  # it is possible to load chunks before actual cache
                 src_begin = self.begin_offset[channel] + chunk_diff
-                if self.cache.is_loading[channel]:
-                    return
-                else:
-                    self.cache.insert(path=self.track[channel].path, channel=channel, src_begin=src_begin, size=abs(chunk_diff), back=False)
+                self.cache.insert(path=self.track[channel].path, channel=channel, src_begin=src_begin,
+                                  size=abs(chunk_diff), back=False)
             else:
-                logger.warning("already at start")
+                logger.info("already at start")
                 return
         elif chunk_diff > 0:  # player plays after mid of cache
-            print("OFFSET WHILE Loading: " + str(self.begin_offset[channel]))
-            if self.begin_offset[channel] + config.cache_size + chunk_diff <= time_to_chunks(get_dur(self.track[channel].path)):  # it is possible to load chunks after actual cache
-                src_begin = self.begin_offset[channel] + config.cache_size + chunk_diff #- 1
+            if self.begin_offset[channel] + config.cache_size  + chunk_diff <= time_to_chunks(get_dur(self.track[channel].path)) + 1 :  # it is possible to load chunks after actual cache, +1 because of floor rounding in get_dur()
+                src_begin = self.begin_offset[channel] + (config.cache_size - 1) + chunk_diff  # -1 because of position not size
                 if self.cache.is_loading[channel]:
                     return
                 else:
-                    self.cache.insert(path=self.track[channel].path, channel=channel, src_begin=src_begin, size=chunk_diff, back=True)
+                    self.cache.insert(path=self.track[channel].path, channel=channel, src_begin=src_begin, size=abs(chunk_diff), back=True)
             else:
-                logger.warning("already at end")
+                logger.info("already at end")
                 return
 
     # CHECKED
-    def get_volume0(self, *args): # TODO: Documentation
+    def get_volume0(self, *args):  # TODO: Documentation
         if len(args) != 1:
             #logger.error("no args")
             return
@@ -187,16 +178,19 @@ class Player(multiprocessing.Process):
         channel = result[0]
         offset_diff = result[1]
         self.begin_offset[channel] += int(offset_diff)
-        print("OFFSET_DIFF: " + str(offset_diff))
-        print("NEW_OFFSET: " + str(self.begin_offset[channel]))
+        logger.debug("OFFSET_DIFF: " + str(offset_diff))
+        logger.debug("NEW_OFFSET: " + str(self.begin_offset[channel]))
         self.cache.is_loading[channel] = False
-        print("CHECK loading ending")
 
     def done_new_track(self, future) -> None:
         result = future.result()
+
+        assert len(result) == 3
+
         channel = result[0]
         offset_diff = result[1]
         path = result[2]
+
         if self.cache.shared_table[channel] is None:
             logger.error("no table")
             return
@@ -209,9 +203,7 @@ class Player(multiprocessing.Process):
         self.phasor[channel].freq = 0
         self.tx_new_track.send([channel, self.track[channel]])
         self.cache.is_loading[channel] = False
-        #self.begin_offset[channel] += offset_diff
-        #logger.debug("offset_diff = " + str(offset_diff))
-        print("CHECK loading ending")
+
 
     # def get_bpm  TODO impl fn get_bpm
 
@@ -249,7 +241,6 @@ class Player(multiprocessing.Process):
     def set_main_volume(self, value: float) -> None:
         self.mainVolume.setAmp(0, 0, value)
 
-
     # CHECKED
     # TODO jump is relative to cache size
     def jump(self, diff: float, channel: int) -> None:
@@ -265,9 +256,9 @@ class Player(multiprocessing.Process):
 
         equalizer.boost = value * 40  # max lowering 40dB
 
-
     # CHECKED
     def get_pos_abs(self, channel: int) -> float:
+        logger.info("abs_time: " + str(self.get_pos_rel(channel) + chunks_to_time(self.begin_offset[channel])))
         return self.get_pos_rel(channel) + chunks_to_time(self.begin_offset[channel])
 
     # CHECKED

@@ -36,8 +36,10 @@ class Cache:
     # back: if cache should be inserted after starting point
     def insert(self, path: str, channel: int, src_begin: int, size: int, back: bool = True,
                is_new_track: bool = False) -> None:
+        logger.debug("parameters in insert(): path: " + str(path) + " channel: " + str(channel) + " src_begin: " +
+                     str(src_begin) + " size: " + str(size) + " back :" + str(back))
         # Error handling
-        if self.is_loading[channel]:  # TODO: stop loading if new track
+        if self.is_loading[channel]:  # TODO: stop loading if new track?
             logger.debug("already loading")
             return
         assert not size > config.cache_size
@@ -49,14 +51,16 @@ class Cache:
         if not is_new_track:  # if to write from actual starting point
             if back:
                 dest_begin = self.start[channel]
-                self.start[channel] = dest_begin + size
+                self.start[channel] = (dest_begin + size) % config.cache_size #TODO size  -1 maybe fault here
             else:
                 dest_begin = (self.start[channel] - size) % config.cache_size
                 self.start[channel] = dest_begin
 
         # load either one continuous parts or two separate parts into cache
         try:
-            if dest_begin + size < config.cache_size:
+            logger.debug("destbeginning: " + str(dest_begin))
+            logger.debug("sizing: " + str(size))
+            if dest_begin + size <= config.cache_size:
                 if is_new_track:
                     future = self.executor.submit(track_loading.load_new, path, channel, src_begin, [size],
                                                   [dest_begin], back)
@@ -64,9 +68,16 @@ class Cache:
                     future = self.executor.submit(track_loading.load, path, channel, src_begin, [size], [dest_begin],
                                                   back)
             else:
-                future = self.executor.submit(track_loading.load, path, channel, src_begin,
-                                              [config.cache_size - dest_begin, size - (config.cache_size - dest_begin)],
-                                              [dest_begin, 0], back)
+                if is_new_track:
+                    future = self.executor.submit(track_loading.load_new, path, channel, src_begin,
+                                                  [config.cache_size - dest_begin,
+                                                   size - (config.cache_size - dest_begin)],
+                                                  [dest_begin, 0], back)
+                else:
+                    future = self.executor.submit(track_loading.load, path, channel, src_begin,
+                                                  [config.cache_size - dest_begin,
+                                                   size - (config.cache_size - dest_begin)],
+                                                  [dest_begin, 0], back)
         except Exception as e:
             logger.error(e)
             return

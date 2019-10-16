@@ -48,7 +48,7 @@ fn load_track(_py: Python, path: String, start: String, stop: String) -> PyResul
     }
 
     //calculate max value
-    //TODO better way?
+    //TODO better w ay?
     let mut max: i16 = 0;
     for i in 0..left.len(){
         if left[i].abs() > max{

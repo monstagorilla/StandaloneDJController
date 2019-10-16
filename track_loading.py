@@ -34,35 +34,42 @@ def load(path: str, channel: int, src_begin: int, size: list, dest_begin: list, 
     assert (channel is not None)
     assert (src_begin is not None)
     assert (size is not None)
+    assert len(size) == len(dest_begin) != 0
     assert (dest_begin is not None)
     assert (back is not None)
-
-    #size not 0?????
 
     if len(size) != len(dest_begin):
         logger.error("different list sizes")
 
     total_size = 0
-    for x in size: 
+    for x in size:
         total_size += x
 
     # TODO extend multi list result to rust function
-    result_data = rustlib.load_track(path, str(chunks_to_time(src_begin)), str(chunks_to_time(src_begin + total_size)))
+    result_data = rustlib.load_track(path=path, start=str(chunks_to_time(src_begin)),
+                                     stop=str(chunks_to_time(src_begin + total_size)))
+    # TODO: Analyze results
+    # use shared table object for accessing from different processes because pyo table objects are not pickable
+    shared_table_c = SharedTable(name=["/sharedl{}".format(channel), "/sharedr{}".format(channel)], create=False,
+                                 size=int(chunks_to_time(total_size) * config.sample_rate))
+    logger.debug("dest begin: " + str(dest_begin))
 
-    # use shared table object for accesing from different processes because pyo table objects are not pickable
-    shared_table_c = SharedTable(name=["/sharedl{}".format(channel), "/sharedr{}".format(channel)], create=False, size=int(chunks_to_time(total_size) * config.sample_rate))
-
+    logger.debug("chunks to time dest begin: " + str(chunks_to_time(dest_begin[0])))
+    logger.debug("chunkstotime * sample rate dest begin: " + str(int(chunks_to_time(dest_begin[0]) * config.sample_rate)))
+    logger.debug("length of result:" + str(len(result_data[0])))
+    logger.debug("chunkstotime * sample rate dest begin: " +  str(int(chunks_to_time(dest_begin[0] + size[0]) * config.sample_rate)))
     for i in range(0, len(dest_begin)):
-        table = DataTable(size=int(size[i] * config.sample_rate * config.chunk_size),
-                          init=[result_data[0][int(chunks_to_time(int(dest_begin[i])) * config.sample_rate): int(chunks_to_time(int(dest_begin[i]) + int(size[i])) * config.sample_rate)],
-                                result_data[1][int(chunks_to_time(int(dest_begin[i])) * config.sample_rate): int(chunks_to_time(int(dest_begin[i]) + int(size[i])) * config.sample_rate)]],
-                      chnls=2)
+        logger.debug("parameters of data tale: size" + str(size[i]) + " inittype: " + str(len(result_data[0][int(chunks_to_time(size[i-1] if i > 0 else 0)): int(chunks_to_time(size[i]) * config.sample_rate)])))
+        table = DataTable(size=int(chunks_to_time(size[i]) * config.sample_rate),
+                          init=[result_data[0][int(chunks_to_time(size[i-1] if i > 0 else 0)): int(chunks_to_time(size[i]) * config.sample_rate)],
+                                result_data[1][int(chunks_to_time(size[i-1] if i > 0 else 0)): int(chunks_to_time(size[i]) * config.sample_rate)]],
+                          chnls=2)
 
 
-        print("reached here")
         #table.fadein(0.5)  # prevent noise at beginning # TODO: find reason for noise, maybe metadata interpreted as audio samples
         shared_table_c.copyData(table=table,
                                 destpos=int(chunks_to_time(int(dest_begin[i])) * config.sample_rate))
+
     if back:
         return [channel, total_size]
     else:
