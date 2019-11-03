@@ -3,12 +3,13 @@ extern crate cpython;
 
 use cpython::{Python, PyResult};
 py_module_initializer!(rustlib, initlibrustlib, PyInit_rustlib, |py, m| {
-    m.add(py, "__doc__", "This module is implemented in Rust.")?;
-    m.add(py, "load_track", py_fn!(py, load_track(path: String, start:String, stop: String)))?;
+    // m.add(py, "__doc__", "This module is implemented in Rust.")?;
+    m.add(py, "load_track", py_fn!(py, load_track(path: String, size: usize, start:String, stop: String)))?;
     Ok(())
 });
+
 // TODO: if track ends -> fill vector with zeros 
-fn load_track(_py: Python, path: String, start: String, stop: String) -> PyResult<Vec<Vec<f32>>> { 
+fn load_track(_py: Python, path: String, size: usize, start: Strin  g, stop: String) -> PyResult<Vec<Vec<f32>>> {
     // spawn ffmpeg command line tool 
     // TODO use ffmpeg api instead of command line tool
     use std::process::Command;
@@ -29,22 +30,22 @@ fn load_track(_py: Python, path: String, start: String, stop: String) -> PyResul
     let out: std::process::ChildStdout = process.stdout.unwrap();
     
     // read result with buffer into vectors
-    let mut left: Vec<i16> = Vec::new();
-    let mut right: Vec<i16> = Vec::new();
+    let mut left: Vec<i16> = vec![0; size];
+    let mut right: Vec<i16> = vec![0; size];
     let mut buf: [u8; 2] = [0, 0];
     let mut br = std::io::BufReader::with_capacity(400000, out);  // TODO different capacity?
     
-    loop {
+    for i in 0..size {
         match br.read_exact(&mut buf) {
             Ok(()) => (),
             Err(_) => break,
         };
-        left.push(i16::from_le_bytes(buf));
+        left[i] = i16::from_le_bytes(buf);
         match br.read_exact(&mut buf) {
             Ok(()) => (),
             Err(_) => break,
         };
-        right.push(i16::from_le_bytes(buf));
+        right[i] = i16::from_le_bytes(buf);
     }
 
     //calculate max value

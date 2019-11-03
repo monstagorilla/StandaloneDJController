@@ -46,7 +46,7 @@ def load(path: str, channel: int, src_begin: int, size: list, dest_begin: list, 
         total_size += x
 
     # TODO extend multi list result to rust function
-    result_data = rustlib.load_track(path=path, start=str(chunks_to_time(src_begin)),
+    result_data = rustlib.load_track(path=path, size=int(chunks_to_time(total_size) * config.sample_rate), start=str(chunks_to_time(src_begin)),
                                      stop=str(chunks_to_time(src_begin + total_size)))
     # TODO: Analyze results
     # use shared table object for accessing from different processes because pyo table objects are not pickable
@@ -66,7 +66,7 @@ def load(path: str, channel: int, src_begin: int, size: list, dest_begin: list, 
                           chnls=2)
 
 
-        #table.fadein(0.5)  # prevent noise at beginning # TODO: find reason for noise, maybe metadata interpreted as audio samples
+        table.fadein(0.5)  # prevent noise at beginning # TODO: find reason for noise, maybe metadata interpreted as audio samples
         shared_table_c.copyData(table=table,
                                 destpos=int(chunks_to_time(int(dest_begin[i])) * config.sample_rate))
 
@@ -79,6 +79,4 @@ def load(path: str, channel: int, src_begin: int, size: list, dest_begin: list, 
 def load_new(path: str, channel: int, src_begin: int, size: list, dest_begin: list, back: bool) -> [int, int, str]:
     result = load(path, channel, int(src_begin), size, dest_begin, back)
     result.append(path)
-    print("LISTE result")
-    print(result)
     return result

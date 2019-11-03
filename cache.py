@@ -51,7 +51,7 @@ class Cache:
         if not is_new_track:  # if to write from actual starting point
             if back:
                 dest_begin = self.start[channel]
-                self.start[channel] = (dest_begin + size) % config.cache_size #TODO size  -1 maybe fault here
+                self.start[channel] = (dest_begin + size) % config.cache_size  # TODO size  -1 maybe fault here
             else:
                 dest_begin = (self.start[channel] - size) % config.cache_size
                 self.start[channel] = dest_begin
